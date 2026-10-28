@@ -347,7 +347,9 @@ async function focusNode(message: Message): Promise<void> {
 
 figma.ui.onmessage = (message: unknown): void => {
   if (!record(message)) return;
-  if (message.type === 'refresh') {
+  if (message.type === 'open-install-guide') {
+    figma.openExternal('https://github.com/charliezstong/pluma-pdf/releases/latest');
+  } else if (message.type === 'refresh') {
     activeAuditRequest = null;
     if (message.scope === 'selection' || message.scope === 'page') scope = message.scope;
     publishFrames();

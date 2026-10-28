@@ -14,7 +14,7 @@ Free and open source, with no subscription. Pluma runs as a development plugin i
 ## Install
 
 1. Install **[Node.js 24 LTS](https://nodejs.org/)**, which includes npm.
-2. Download the ZIP from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
+2. Download `PlumaPDF-1.0.2.zip` from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
 3. Run the installer for your operating system:
 
 | Platform | Install | Start the local engine |
@@ -26,6 +26,20 @@ Free and open source, with no subscription. Pluma runs as a development plugin i
 5. Start the engine, leave its window open, and run **Pluma PDF · Local** from Development.
 
 The first installation downloads dependencies. If macOS blocks a downloaded launcher, use the Terminal alternative in the [installation guide](docs/INSTALL.md). The Smart mode needs the engine running; Original and Compact can export without it. This release is imported locally and is not distributed through Figma Community.
+
+The installable release ZIP includes prebuilt `dist/code.js` and `dist/ui.html`. Git checkouts and GitHub's automatic **Source code** downloads omit `dist/`; the installer builds it before you import the manifest. Keep the generated files in place while Figma uses the plugin.
+
+## If Figma cannot load the plugin
+
+The message **"An error occurred while loading the plugin environment"** can mean that the files referenced by `manifest.json` are missing, including after a source update removes generated bundles. From the plugin folder, run:
+
+```sh
+npm start
+```
+
+Startup checks the manifest entry points and rebuilds missing or invalid bundles before starting or reusing the local engine. Then reopen **Pluma PDF · Local** in Figma. If the folder moved, reimport its `manifest.json`.
+
+To rebuild without starting the engine, run `npm run build`. If dependencies are missing, run `npm run install:local` first. `npm run doctor` checks the manifest's actual bundle files and reports an error when they are missing or invalid; it does not rebuild them or start a service. See the [recovery steps](docs/INSTALL.md#figmas-plugin-environment-error) for details.
 
 ## Use
 
@@ -78,7 +92,7 @@ scripts/      Build, preview, installation and packaging tools
   windows/    Windows launchers
 docs/         Installation, architecture, brand and contributor guides
 tests/        Synthetic fixtures and regression checks
-dist/         Generated bundles imported by Figma
+dist/         Generated bundles; ignored by Git, included in release ZIPs
 licenses/     Third-party license texts
 ```
 

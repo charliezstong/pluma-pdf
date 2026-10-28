@@ -1,7 +1,8 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, realpath, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import http from 'node:http';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -109,9 +110,14 @@ export async function npmCommand(args, { platform = process.platform, execPath =
 
 export function dependenciesReady(root = ROOT) {
   try {
+    // Avoid caching failed package resolutions before npm installs missing tools.
+    for (const name of ['pdf-lib', 'pdfjs-dist', 'sharp', 'esbuild']) {
+      if (!existsSync(join(root, 'node_modules', name, 'package.json'))) return false;
+    }
     const require = createRequire(join(root, 'package.json'));
     require.resolve('pdf-lib');
     require.resolve('pdfjs-dist/legacy/build/pdf.mjs');
+    require.resolve('esbuild');
     return Boolean(require('sharp').versions.vips);
   } catch {
     return false;
@@ -130,14 +136,62 @@ export async function ensureDependencies({ root = ROOT, force = false, ready = d
   if (!ready(root)) throw new Error('Dependencies could not load on this computer. Do not copy node_modules from another computer: run the installer on this computer instead.');
 }
 
-export async function ensureBuild({ root = ROOT, force = false, run = runProcess } = {}) {
-  if (!force) {
-    try {
-      await Promise.all(['dist/code.js', 'dist/ui.html'].map(path => access(join(root, path))));
-      return;
-    } catch { /* Source downloads may not yet contain the generated bundles. */ }
+function isInside(root, path) {
+  const remainder = relative(root, path);
+  return remainder !== '' && remainder !== '..' && !remainder.startsWith(`..${sep}`) && !isAbsolute(remainder);
+}
+
+/** Check the manifest's actual entry points without changing any files. */
+export async function pluginReadiness(root = ROOT) {
+  const targets = [];
+  const issues = [];
+  const rootPath = resolve(root);
+  let manifest;
+  let physicalRoot;
+  try {
+    [manifest, physicalRoot] = await Promise.all([
+      readFile(join(rootPath, 'manifest.json'), 'utf8').then(JSON.parse),
+      realpath(rootPath),
+    ]);
+  } catch (error) {
+    return { ready: false, targets, issues: [`Cannot read manifest.json: ${error.message}`] };
   }
+  const entries = [{ field: 'main', path: manifest?.main }];
+  if (manifest?.ui && typeof manifest.ui === 'object' && !Array.isArray(manifest.ui)) {
+    const interfaces = Object.entries(manifest.ui);
+    if (!interfaces.length) issues.push('manifest.ui must contain at least one entry point.');
+    for (const [key, path] of interfaces) entries.push({ field: `ui.${key}`, path });
+  } else entries.push({ field: 'ui', path: manifest?.ui });
+  for (const entry of entries) {
+    if (typeof entry.path !== 'string' || !entry.path.trim() || entry.path.includes('\0')) {
+      issues.push(`manifest.${entry.field} must be a relative file path.`);
+      continue;
+    }
+    const path = entry.path.replaceAll('\\', '/');
+    const absolutePath = resolve(rootPath, path);
+    targets.push({ field: entry.field, path });
+    if (isAbsolute(path) || /^[A-Za-z]:/.test(path) || !isInside(rootPath, absolutePath)) {
+      issues.push(`${path} (${entry.field}) must stay inside the plugin folder.`);
+      continue;
+    }
+    try {
+      const [info, physicalPath] = await Promise.all([stat(absolutePath), realpath(absolutePath)]);
+      if (!isInside(physicalRoot, physicalPath)) issues.push(`${path} (${entry.field}) resolves outside the plugin folder.`);
+      else if (!info.isFile()) issues.push(`${path} (${entry.field}) is not a regular file.`);
+      else if (info.size === 0) issues.push(`${path} (${entry.field}) is empty.`);
+    } catch (error) {
+      issues.push(`${path} (${entry.field}) is ${error.code === 'ENOENT' ? 'missing' : 'not readable'}.`);
+    }
+  }
+  return { ready: issues.length === 0, targets, issues };
+}
+
+export async function ensureBuild({ root = ROOT, force = false, run = runProcess } = {}) {
+  const before = await pluginReadiness(root);
+  if (!force && before.ready) return;
   await run(process.execPath, ['scripts/build.mjs'], { root });
+  const after = await pluginReadiness(root);
+  if (!after.ready) throw new Error(`The build did not produce a loadable plugin: ${after.issues.join(' ')} Run npm run install:local to repair the installation.`);
 }
 
 function portError(port) {
@@ -194,26 +248,30 @@ async function openBrowser(url) {
   }
 }
 
-export async function main(command, { root = ROOT } = {}) {
+export async function main(command, { root = ROOT, ensureDeps = ensureDependencies, ensureBundles = ensureBuild, probe = probeService, log = console.log, openPreview = openBrowser } = {}) {
   requireNode();
   const pkg = await readPackage(root);
   if (command === 'install') {
-    await ensureDependencies({ root, force: true });
-    await ensureBuild({ root, force: true });
+    await ensureDeps({ root, force: true });
+    await ensureBundles({ root, force: true });
     console.log(`\nPluma PDF is installed.\n1. Run npm start, or open scripts/macos/start-engine.command (macOS) or scripts/windows/start-engine.cmd (Windows).\n2. In Figma Desktop, import this manifest:\n${join(root, 'manifest.json')}\n\nFull instructions: docs/INSTALL.md`);
     return;
   }
   if (command === 'check') {
-    console.log(`Node.js ${process.versions.node}: supported. Dependencies: ${dependenciesReady(root) ? 'ready' : 'not installed yet'}.`);
-    const status = await probeService({ port: ENGINE_PORT, version: pkg.version });
-    console.log(`Local engine: ${status.state === 'ready' ? 'connected' : status.state === 'absent' ? 'stopped' : 'port occupied by another service or version'}.`);
+    log(`Node.js ${process.versions.node}: supported. Dependencies: ${dependenciesReady(root) ? 'ready' : 'not installed yet'}.`);
+    const bundles = await pluginReadiness(root);
+    log(`Plugin bundles: ${bundles.ready ? `ready (${bundles.targets.map(target => target.path).join(', ')})` : bundles.issues.join(' ')}`);
+    if (!bundles.ready) throw new Error('Plugin bundles are not ready. Run npm run build, or npm run install:local if dependencies are missing, before importing manifest.json in Figma.');
+    const status = await probe({ port: ENGINE_PORT, version: pkg.version });
+    log(`Local engine: ${status.state === 'ready' ? 'connected' : status.state === 'absent' ? 'stopped' : 'port occupied by another service or version'}.`);
     return;
   }
   if (command === 'engine') {
+    await ensureDeps({ root });
+    await ensureBundles({ root });
     const result = await startService({
-      port: ENGINE_PORT, version: pkg.version,
+      port: ENGINE_PORT, version: pkg.version, probe, log,
       create: async () => {
-        await ensureDependencies({ root });
         const { createServer } = await import(pathToFileURL(join(root, 'engine/server.mjs')).href);
         return createServer();
       },
@@ -227,11 +285,11 @@ export async function main(command, { root = ROOT } = {}) {
     return;
   }
   if (command === 'preview') {
+    await ensureDeps({ root });
+    await ensureBundles({ root });
     const result = await startService({
-      port: PREVIEW_PORT, version: pkg.version, name: 'Pluma PDF · Demo', engine: 'preview',
+      port: PREVIEW_PORT, version: pkg.version, name: 'Pluma PDF · Demo', engine: 'preview', probe, log,
       create: async () => {
-        await ensureDependencies({ root });
-        await ensureBuild({ root });
         return http.createServer(async (req, res) => {
           if (req.method === 'GET' && req.url === '/health') {
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -250,8 +308,8 @@ export async function main(command, { root = ROOT } = {}) {
       },
     });
     closeOnSignals(result.server);
-    console.log('Demo with sample pages. To export your design, open the plugin in Figma Desktop.');
-    await openBrowser(`http://127.0.0.1:${PREVIEW_PORT}`);
+    log('Demo with sample pages. To export your design, open the plugin in Figma Desktop.');
+    await openPreview(`http://127.0.0.1:${PREVIEW_PORT}`);
     return;
   }
   throw new Error('Usage: node scripts/local.mjs install | engine | preview | check');

