@@ -9,13 +9,13 @@ The primary icon is a sculpted white feather inside a luminous cobalt glass tile
 - `assets/brand/mark.svg`: simplified monochrome feather; it does not reproduce the glass rendering.
 - `assets/brand/cover.png` and `cover.webp`: 3104 × 900 repository cover; the README uses WebP.
 - `assets/brand/figma-cover.png` and `figma-cover.webp`: 1920 × 1080 Community artwork, preserving the original navy icon-and-type direction.
-- `assets/brand/preview.png`: English plugin screenshot using the built-in synthetic document.
+- `assets/brand/preview.png`: 3104 × 1800 horizontal presentation of three real English plugin screens, rendered at 2× using the built-in synthetic document.
 
 The plugin embeds its brand images locally. The startup screen uses the 256 px icon at 96 CSS pixels, with a small animated loading indicator. Startup waits for initial pages and language preferences with bounded fallbacks; it does not wait for the optional engine. Header and bottom sheets use the same actual icon.
 
 ## Production
 
-The icon and panoramic cover were made with the built-in image generation tool, using the original Pluma icon and cover as identity references. The panoramic delivery uses a centered proportional crop and resize to exactly 3104 × 900; no stretching. Community artwork proportionally fits the original navy cover into a 1920 × 1080 navy canvas. These are raster assets. No client document imagery is included. Community assets are prepared for upload; this repository does not publish the plugin to Figma Community.
+The icon and panoramic cover were made with the built-in image generation tool, using the original Pluma icon and cover as identity references. The panoramic delivery uses a centered proportional crop and resize to exactly 3104 × 900; no stretching. Community artwork proportionally fits the original navy cover into a 1920 × 1080 navy canvas. These are raster assets. No client document imagery is included. The classic plugin has been submitted to Figma Community under ID `1697169100357342944` and is awaiting review. The public listing uses the searchable name “Pluma PDF — Export & Compress”; the artwork and interface retain the Pluma PDF brand.
 
 ### Final icon prompt
 
@@ -48,7 +48,7 @@ Keep the icon square and preserve its alpha channel. Use a dark navy or neutral 
 
 ### Interface palette
 
-Interactive accents share `--blue` (`#174191`), with `#2052AB` hover and `#123371` pressed states. This remains recognizably blue while feeling deeper than bright cobalt. Primary buttons are rounded and 46 px tall with 13 px vertical padding. Secondary selections use neutral gray fills (`#F1F2F4`) and quiet gray borders (`#C7C9D2`), with dark blue text; avoid bright blue selection cards. The metric strip stays white with neutral separators and an accented reduction value, while the loaded PDF canvas is exactly `#1E1E1E`. All dialogs use a full-width bottom sheet with the Pluma icon centered above the title, a fade/translate entrance and a subtle exit. Respect reduced-motion preferences. These tokens affect interface chrome only, never the rendered PDF.
+Primary buttons share `--primary-gradient`, sampled from the icon’s cobalt, electric blue and cyan direction, with a restrained luminous edge. Keep white text over the deeper center and secondary controls neutral. Other interactive accents share `--blue` (`#174191`), with `#2052AB` hover and `#123371` pressed states. This remains recognizably blue while feeling deeper than bright cobalt. Primary buttons are rounded and 46 px tall with 13 px vertical padding. Secondary selections use neutral gray fills (`#F1F2F4`) and quiet gray borders (`#C7C9D2`), with dark blue text; avoid bright blue selection cards. The metric strip stays white with neutral separators and an accented reduction value, while the loaded PDF canvas is exactly `#1E1E1E`. All dialogs use a full-width bottom sheet with the Pluma icon centered above the title, a fade/translate entrance and a subtle exit. Respect reduced-motion preferences. These tokens affect interface chrome only, never the rendered PDF.
 
 ## Empty preview motion
 

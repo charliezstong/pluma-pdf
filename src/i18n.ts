@@ -2,6 +2,11 @@ export type Locale = 'en' | 'es' | 'pt';
 export type LanguagePreference = Locale | 'auto';
 
 const en = {
+  "Frame preview": "Frame preview",
+  "Frame preview · Analyze to compare the PDF.": "Frame preview · Analyze to compare the PDF.",
+  "Loading frame preview…": "Loading frame preview…",
+  "Frame preview unavailable. Analyze to preview the PDF.": "Frame preview unavailable. Analyze to preview the PDF.",
+  "Frame preview · Waiting for the PDF…": "Frame preview · Waiting for the PDF…",
   "Loading Pluma PDF…": "Loading Pluma PDF…",
   "Sample document": "Sample document",
   "Connect local engine": "Connect local engine",
@@ -209,6 +214,11 @@ export type TranslationKey = keyof typeof en;
 export type TranslationValues = Readonly<Record<string, string | number>>;
 
 const es = {
+  "Frame preview": "Vista del frame",
+  "Frame preview · Analyze to compare the PDF.": "Vista del frame · Analiza para comparar el PDF.",
+  "Loading frame preview…": "Cargando vista del frame…",
+  "Frame preview unavailable. Analyze to preview the PDF.": "Vista del frame no disponible. Analiza para ver el PDF.",
+  "Frame preview · Waiting for the PDF…": "Vista del frame · Esperando el PDF…",
   "Loading Pluma PDF…": "Cargando Pluma PDF…",
   "Sample document": "Documento de muestra",
   "Connect local engine": "Conectar motor local",
@@ -413,6 +423,11 @@ const es = {
 } satisfies Record<TranslationKey, string>;
 
 const pt = {
+  "Frame preview": "Prévia do frame",
+  "Frame preview · Analyze to compare the PDF.": "Prévia do frame · Analise para comparar o PDF.",
+  "Loading frame preview…": "Carregando prévia do frame…",
+  "Frame preview unavailable. Analyze to preview the PDF.": "Prévia do frame indisponível. Analise para visualizar o PDF.",
+  "Frame preview · Waiting for the PDF…": "Prévia do frame · Aguardando o PDF…",
   "Loading Pluma PDF…": "Carregando Pluma PDF…",
   "Sample document": "Documento de exemplo",
   "Connect local engine": "Conectar motor local",

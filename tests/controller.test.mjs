@@ -63,6 +63,7 @@ function harness() {
       configurable: true,
       get: () => options.bounds || ({ x: 20, y: 40, width: node.width, height: node.height }),
     });
+    Object.defineProperty(node, 'absoluteRenderBounds', { configurable: true, get: () => options.renderBounds ?? null });
     if (parent) parent.appendChild(node);
     return node;
   }
@@ -553,4 +554,175 @@ test('focus-node selects and zooms only when requested without rebinding reviewe
   h.send({ type: 'refresh', scope: 'selection' });
   assert.equal(h.messages.filter(message => message.type === 'frames').length, initialLists + 1, 'explicit refresh still reloads selection');
   assert.deepEqual(h.mutations, []);
+});
+
+// A synthetic one-pixel PNG; altered IHDR fields below exercise metadata guards,
+// not a full PNG decoder. Figma is the trusted encoder in the actual plugin.
+const previewPng = () => new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j8n0AAAAASUVORK5CYII=', 'base64'));
+const previewRequest = (requestId, id) => ({ type: 'preview-frame', requestId, id });
+const previewReply = (h, requestId) => h.messages.find(message => message.type === 'frame-preview' && message.requestId === requestId);
+const waitPreview = (h, requestId) => eventually(() => previewReply(h, requestId), `frame-preview (${requestId})`);
+const deferredPreview = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+
+// These previews are distinct from native PDF export and never acknowledge or
+// advance a PDF job, modify the source, or access image assets individually.
+test('frame preview exports only the published node, bounds effects and rotation, and never mutates or enlarges the source', async t => {
+  const h = harness(); t.after(() => h.close());
+  const frame = h.scene({ id: 'preview-large', name: 'Original {name} / Página', width: 4000, height: 1000,
+    bounds: { x: 0, y: 0, width: 4000, height: 1000 }, renderBounds: { x: -200, y: -100, width: 4500, height: 1500 }, exportHook: () => previewPng() });
+  const small = h.scene({ id: 'preview-small', width: 120, height: 80, exportHook: () => previewPng() });
+  h.page.selection = [frame, small]; h.boot(null); const before = h.snapshot(); const selection = [...h.page.selection];
+  h.send(previewRequest('preview-large-request', frame.id));
+  const reply = await waitPreview(h, 'preview-large-request');
+  assert.equal(reply.id, frame.id); assert.equal(reply.format, 'png'); assert.ok(reply.bytes instanceof Uint8Array);
+  assert.deepEqual(copy(h.exports[0].settings), { format: 'PNG', constraint: { type: 'SCALE', value: 1023 / 4500 }, contentsOnly: true, useAbsoluteBounds: true, colorProfile: 'SRGB' });
+  h.send(previewRequest('preview-small-request', small.id)); await waitPreview(h, 'preview-small-request');
+  assert.equal(h.exports[1].settings.constraint.value, 1);
+  assert.equal(h.find('page'), undefined); assert.equal(h.find('progress'), undefined);
+  assert.deepEqual(h.snapshot(), before); assert.deepEqual(h.page.selection, selection); assert.deepEqual(h.mutations, []);
+});
+
+test('frame preview refuses unpublished nodes before looking them up and rechecks page membership after lookup', async t => {
+  const h = harness(); t.after(() => h.close());
+  const selected = h.scene({ id: 'preview-selected', exportHook: () => previewPng() });
+  const sibling = h.scene({ id: 'preview-unselected', exportHook: () => previewPng() });
+  const child = h.scene({ id: 'preview-private-child', exportHook: () => previewPng() }, selected);
+  const otherPage = h.container('PAGE', 'preview-other-page', 'Synthetic other page');
+  const foreign = h.scene({ id: 'preview-foreign', exportHook: () => previewPng() }, otherPage);
+  h.page.selection = [selected]; h.boot(null);
+  let lookups = 0; const lookup = h.figma.getNodeByIdAsync;
+  h.figma.getNodeByIdAsync = async id => { lookups++; return lookup(id); };
+  for (const node of [sibling, child, foreign]) {
+    h.send(previewRequest(`unpublished-${node.id}`, node.id));
+    assert.match((await waitPreview(h, `unpublished-${node.id}`)).error, /no longer available/);
+  }
+  assert.equal(lookups, 0); assert.equal(h.exports.length, 0);
+  selected.parent = otherPage; // Simulate a user moving a previously published node.
+  h.send(previewRequest('moved-before-preview', selected.id));
+  assert.match((await waitPreview(h, 'moved-before-preview')).error, /no longer available/);
+  assert.equal(lookups, 1); assert.equal(h.exports.length, 0); assert.deepEqual(h.mutations, []);
+});
+
+test('malformed frame-preview identifiers are ignored without exporting or superseding a valid request', async t => {
+  const h = harness(); t.after(() => h.close()); const pending = deferredPreview();
+  const frame = h.scene({ id: 'preview-validation', exportHook: () => pending.promise });
+  h.page.selection = [frame]; h.boot(null); h.send(previewRequest('valid-before-malformed', frame.id));
+  await eventually(() => h.exports.length === 1, 'initial preview export');
+  for (const requestId of ['', 'x'.repeat(129), 3, null, {}]) h.send(previewRequest(requestId, frame.id));
+  for (const id of ['', 'x'.repeat(129), 3, null, {}]) h.send(previewRequest('malformed-id', id));
+  h.send(null); h.send([]); pending.resolve(previewPng());
+  await waitPreview(h, 'valid-before-malformed');
+  assert.equal(h.exports.length, 1); assert.equal(h.messages.filter(message => message.type === 'frame-preview').length, 1);
+});
+
+test('frame preview coalesces rapid choices to the latest request with one native PNG export in flight', async t => {
+  const h = harness(); t.after(() => h.close()); const first = deferredPreview();
+  let running = 0, maximumRunning = 0;
+  const hook = pending => async () => { running++; maximumRunning = Math.max(maximumRunning, running); try { return pending ? await pending.promise : previewPng(); } finally { running--; } };
+  const a = h.scene({ id: 'preview-coalesce-a', exportHook: hook(first) });
+  const b = h.scene({ id: 'preview-coalesce-b', exportHook: hook() });
+  const c = h.scene({ id: 'preview-coalesce-c', exportHook: hook() });
+  h.page.selection = [a, b, c]; h.boot(null);
+  h.send(previewRequest('coalesce-a', a.id)); await eventually(() => h.exports.length === 1, 'first PNG starts');
+  h.send(previewRequest('coalesce-b', b.id)); h.send(previewRequest('coalesce-c', c.id)); await nextTurn();
+  assert.equal(h.exports.length, 1); first.resolve(previewPng());
+  await waitPreview(h, 'coalesce-c');
+  assert.deepEqual(h.exports.map(value => value.node.id), [a.id, c.id]);
+  assert.equal(previewReply(h, 'coalesce-a'), undefined); assert.equal(previewReply(h, 'coalesce-b'), undefined);
+  assert.equal(maximumRunning, 1); assert.deepEqual(h.mutations, []);
+});
+
+test('refresh, selection change, page change and close suppress stale PNG replies and clear pending preview work', async t => {
+  for (const event of ['refresh', 'selectionchange', 'currentpagechange', 'close']) await t.test(event, async t => {
+    const h = harness(); t.after(() => h.close()); const first = deferredPreview();
+    const a = h.scene({ id: `preview-stale-${event}`, exportHook: () => first.promise });
+    const b = h.scene({ id: `preview-pending-${event}`, exportHook: () => previewPng() });
+    h.page.selection = [a, b]; h.boot(null);
+    h.send(previewRequest(`old-${event}`, a.id)); await eventually(() => h.exports.length === 1, 'pending PNG');
+    h.send(previewRequest(`queued-${event}`, b.id));
+    if (event === 'refresh') h.send({ type: 'refresh', scope: 'selection' });
+    else if (event === 'currentpagechange') { h.figma.currentPage = h.container('PAGE', `new-page-${event}`, 'Synthetic new page'); h.emit(event); }
+    else h.emit(event);
+    first.resolve(previewPng()); for (let i = 0; i < 4; i++) await nextTurn();
+    assert.equal(previewReply(h, `old-${event}`), undefined); assert.equal(previewReply(h, `queued-${event}`), undefined);
+    assert.equal(h.exports.length, 1); assert.deepEqual(h.mutations, []);
+    if (event === 'close') { h.send(previewRequest('after-close', b.id)); await nextTurn(); assert.equal(h.exports.length, 1); }
+  });
+});
+
+test('preview rejects busy PDF jobs in all locales and cannot advance or disrupt their ACK sequence', async t => {
+  const h = harness(); t.after(() => h.close());
+  const frame = h.scene({ id: 'preview-pdf-busy', exportHook: (_node, settings) => settings.format === 'PDF' ? new Uint8Array([37, 80, 68, 70]) : previewPng() });
+  h.page.selection = [frame]; h.boot(null); h.send(request('pdf-during-preview-test', [frame.id]));
+  await h.wait('page', 'pdf-during-preview-test');
+  for (const [locale, expected] of [['en', /Wait for the analysis/], ['es', /Espera a que termine el análisis/], ['pt', /Aguarde a conclusão da análise/]]) {
+    h.send({ type: 'set-language', locale }); h.send(previewRequest(`busy-${locale}`, frame.id));
+    assert.match((await waitPreview(h, `busy-${locale}`)).error, expected);
+  }
+  assert.equal(h.exports.length, 1); assert.equal(h.find('done', 'pdf-during-preview-test'), undefined);
+  acknowledge(h, 'pdf-during-preview-test', 0); await h.wait('done', 'pdf-during-preview-test');
+  h.send(previewRequest('after-pdf-complete', frame.id)); assert.equal((await waitPreview(h, 'after-pdf-complete')).format, 'png');
+});
+
+test('a PDF job invalidates an already running PNG result while retaining the native export pipeline', async t => {
+  const h = harness(); t.after(() => h.close()); const pending = deferredPreview();
+  const frame = h.scene({ id: 'preview-then-pdf', exportHook: (_node, settings) => settings.format === 'PNG' ? pending.promise : new Uint8Array([37, 80, 68, 70]) });
+  h.page.selection = [frame]; h.boot(null); const before = h.snapshot();
+  h.send(previewRequest('png-before-pdf', frame.id)); await eventually(() => h.exports.length === 1, 'first PNG');
+  h.send(request('native-after-png', [frame.id])); const page = await h.wait('page', 'native-after-png');
+  assert.equal(page.format, 'pdf'); pending.resolve(previewPng()); for (let i = 0; i < 3; i++) await nextTurn();
+  assert.equal(previewReply(h, 'png-before-pdf'), undefined);
+  assert.deepEqual(h.exports.map(value => value.settings.format), ['PNG', 'PDF']);
+  acknowledge(h, 'native-after-png', 0); await h.wait('done', 'native-after-png');
+  assert.deepEqual(h.snapshot(), before); assert.deepEqual(h.mutations, []);
+});
+
+test('preview payloads enforce encoded byte and PNG dimension limits before posting bytes', async t => {
+  const h = harness(); t.after(() => h.close()); let payload = previewPng();
+  const frame = h.scene({ id: 'preview-payload-limits', exportHook: () => payload }); h.page.selection = [frame]; h.boot(null);
+  const tooWide = previewPng(); new DataView(tooWide.buffer).setUint32(16, 1025);
+  const zeroHeight = previewPng(); new DataView(zeroHeight.buffer).setUint32(20, 0);
+  for (const [name, bytes, expected] of [
+    ['empty', new Uint8Array(), /not a supported PNG/], ['truncated', new Uint8Array([137, 80, 78, 71]), /not a supported PNG/],
+    ['byte-cap', new Uint8Array(8 * 1024 * 1024 + 1), /8 MiB/], ['dimensions', tooWide, /1024 px/], ['zero-height', zeroHeight, /1024 px/],
+  ]) {
+    payload = bytes; h.send(previewRequest(`invalid-preview-${name}`, frame.id)); const reply = await waitPreview(h, `invalid-preview-${name}`);
+    assert.match(reply.error, expected); assert.equal(reply.bytes, undefined);
+  }
+  payload = previewPng(); h.send(previewRequest('valid-after-bad-payload', frame.id)); assert.ok((await waitPreview(h, 'valid-after-bad-payload')).bytes);
+  assert.deepEqual(h.mutations, []);
+});
+
+test('preview drops stale asynchronous lookups before exporting and rechecks a removed node after rendering', async t => {
+  const h = harness(); t.after(() => h.close()); const lookup = deferredPreview(), render = deferredPreview();
+  const a = h.scene({ id: 'preview-stale-lookup', exportHook: () => previewPng() });
+  const b = h.scene({ id: 'preview-remove-after-render', exportHook: () => render.promise }); h.page.selection = [a, b]; h.boot(null);
+  const normalLookup = h.figma.getNodeByIdAsync; h.figma.getNodeByIdAsync = id => id === a.id ? lookup.promise : normalLookup(id);
+  h.send(previewRequest('lookup-old', a.id)); h.send(previewRequest('render-new', b.id)); lookup.resolve(a);
+  await eventually(() => h.exports.length === 1, 'latest PNG begins'); assert.equal(h.exports[0].node.id, b.id);
+  b.removed = true; render.resolve(previewPng());
+  assert.match((await waitPreview(h, 'render-new')).error, /no longer available/); assert.equal(previewReply(h, 'lookup-old'), undefined);
+  assert.deepEqual(h.mutations, []);
+});
+
+test('invalid rendered bounds never start a PNG and a native exporter failure does not stall later previews', async t => {
+  const h = harness(); t.after(() => h.close()); let fail = true;
+  const invalid = h.scene({ id: 'preview-invalid-bounds', renderBounds: { x: 0, y: 0, width: Infinity, height: 4 }, exportHook: () => previewPng() });
+  const recover = h.scene({ id: 'preview-native-failure', exportHook: () => { if (fail) throw new Error('Synthetic Figma exporter detail'); return previewPng(); } });
+  h.page.selection = [invalid, recover]; h.boot(null);
+  h.send(previewRequest('invalid-render-bounds', invalid.id)); assert.match((await waitPreview(h, 'invalid-render-bounds')).error, /no valid bounds/); assert.equal(h.exports.length, 0);
+  h.send(previewRequest('exporter-failed', recover.id)); assert.match((await waitPreview(h, 'exporter-failed')).error, /(?:^|Error: )Synthetic Figma exporter detail$/);
+  fail = false; h.send(previewRequest('exporter-recovered', recover.id)); assert.equal((await waitPreview(h, 'exporter-recovered')).format, 'png');
+  assert.deepEqual(h.mutations, []);
+});
+
+test('preview posts only the encoded typed-array range rather than a larger backing buffer', async t => {
+  const h = harness(); t.after(() => h.close());
+  const png = previewPng(), backing = new Uint8Array(8 * 1024 * 1024 + 1); backing.fill(91);
+  const view = backing.subarray(100, 100 + png.length); view.set(png);
+  const frame = h.scene({ id: 'preview-typed-array-view', exportHook: () => view }); h.page.selection = [frame]; h.boot(null);
+  h.send(previewRequest('bounded-message-buffer', frame.id)); const reply = await waitPreview(h, 'bounded-message-buffer');
+  assert.deepEqual(reply.bytes, png); assert.equal(reply.bytes.byteOffset, 0);
+  assert.equal(reply.bytes.buffer.byteLength, png.byteLength); assert.notEqual(reply.bytes.buffer, backing.buffer);
+  assert.equal(backing[99], 91); assert.equal(backing[100 + png.length], 91); assert.deepEqual(h.mutations, []);
 });

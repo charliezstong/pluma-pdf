@@ -30,6 +30,12 @@ const en = {
   scalePositive: 'Scale must be a positive number.',
   edgePositive: 'The side limit must be a positive number.',
   pixelsPositive: 'The pixel limit must be a positive number.',
+  previewBusy: 'Wait for the analysis to finish before requesting a frame preview.',
+  previewUnavailable: 'This frame is no longer available in the current selection. Refresh the list.',
+  previewInvalidBounds: 'The frame has no valid bounds for a preview.',
+  previewTooLarge: 'The frame preview exceeds the 8 MiB limit.',
+  previewInvalidImage: 'The frame preview is not a supported PNG.',
+  previewDimensions: 'The frame preview exceeds the 1024 px side limit.',
 } as const;
 
 export type PluginTextKey = keyof typeof en;
@@ -63,6 +69,12 @@ const es: Record<PluginTextKey, string> = {
   scalePositive: 'La escala debe ser un número positivo.',
   edgePositive: 'El límite de lado debe ser un número positivo.',
   pixelsPositive: 'El límite de píxeles debe ser un número positivo.',
+  previewBusy: 'Espera a que termine el análisis para solicitar una vista previa del frame.',
+  previewUnavailable: 'Este frame ya no está disponible en la selección actual. Actualiza la lista.',
+  previewInvalidBounds: 'El frame no tiene límites válidos para la vista previa.',
+  previewTooLarge: 'La vista previa del frame supera el límite de 8 MiB.',
+  previewInvalidImage: 'La vista previa del frame no es un PNG compatible.',
+  previewDimensions: 'La vista previa del frame supera el límite de 1024 px por lado.',
 };
 
 const pt: Record<PluginTextKey, string> = {
@@ -94,6 +106,12 @@ const pt: Record<PluginTextKey, string> = {
   scalePositive: 'A escala deve ser um número positivo.',
   edgePositive: 'O limite de lado deve ser um número positivo.',
   pixelsPositive: 'O limite de pixels deve ser um número positivo.',
+  previewBusy: 'Aguarde a conclusão da análise para solicitar uma prévia do frame.',
+  previewUnavailable: 'Este frame não está mais disponível na seleção atual. Atualize a lista.',
+  previewInvalidBounds: 'O frame não tem limites válidos para a prévia.',
+  previewTooLarge: 'A prévia do frame excede o limite de 8 MiB.',
+  previewInvalidImage: 'A prévia do frame não é um PNG compatível.',
+  previewDimensions: 'A prévia do frame excede o limite de 1024 px por lado.',
 };
 
 export const pluginMessages: Record<PluginLocale, Readonly<Record<PluginTextKey, string>>> = { en, es, pt };

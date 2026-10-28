@@ -13,6 +13,8 @@ type Frame = { id: string; name: string; width: number; height: number; selected
 type Job = { id: string; ids: string[]; missingIds: string[]; settings: Settings; key: string; abort: AbortController; cancelled: boolean; controllerActive: boolean; processed: number; finalizing: boolean; processingFrameId?: string };
 type Output = { bytes: Uint8Array; originalBytes: number; ids: string[]; key: string; optimized: number; skipped: number };
 type Preview = { before: string; after?: string; diff?: RenderedImageDiff };
+type FramePreview = { url: string; bytes: number };
+type FramePreviewRequest = { requestId: string; id: string; generation: number; timer: ReturnType<typeof setTimeout> };
 type LayerCandidate = { id: string; coverId: string; frameId: string; frameName: string; name: string; coverName: string; reason: string; confidence: string };
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const demo = parent === window;
@@ -89,6 +91,71 @@ let layerCandidates: LayerCandidate[] = [];
 let lastLayerAudit: any = null;
 const previews = new Map<string, Preview>();
 const thumbnailPending = new Set<string>();
+const framePreviews = new Map<string, FramePreview>();
+const unavailableFramePreviews = new Set<string>();
+let framePreviewRequest: FramePreviewRequest | undefined;
+let framePreviewRefreshPending = false;
+let framePreviewSequence = 0;
+const MAX_FRAME_PREVIEW_BYTES = 8 * 1024 * 1024;
+const MAX_FRAME_PREVIEW_CACHE_BYTES = 20 * 1024 * 1024;
+function cancelFramePreviewRequest(): void { if (framePreviewRequest) clearTimeout(framePreviewRequest.timer); framePreviewRequest = undefined; }
+function releaseFramePreview(id: string): void {
+  const cached = framePreviews.get(id); if (!cached) return;
+  const image = $<HTMLImageElement>('frame-preview-image');
+  if (image.src === cached.url) { $('frame-preview-surface').hidden = true; image.removeAttribute('src'); }
+  for (const frame of frames) if (frame.thumb === cached.url) frame.thumb = undefined;
+  framePreviews.delete(id); renderFrames(); URL.revokeObjectURL(cached.url);
+}
+function clearFramePreviews(): void {
+  cancelFramePreviewRequest();
+  $('frame-preview-surface').hidden = true; $<HTMLImageElement>('frame-preview-image').removeAttribute('src');
+  for (const id of [...framePreviews.keys()]) releaseFramePreview(id);
+  unavailableFramePreviews.clear();
+}
+function framePreviewFailed(id: string): void {
+  unavailableFramePreviews.add(id); releaseFramePreview(id);
+  if (currentFrame()?.id === id && !currentFrame()?.original && !busy) updateFramePreview(currentFrame());
+}
+function updateFramePreview(frame?: Frame): void {
+  const surface = $('frame-preview-surface');
+  if (!frame || frame.original || framePreviewRefreshPending) { surface.hidden = true; return; }
+  const cached = framePreviews.get(frame.id);
+  if (cached) {
+    framePreviews.delete(frame.id); framePreviews.set(frame.id, cached);
+    const image = $<HTMLImageElement>('frame-preview-image');
+    if (image.src !== cached.url) image.src = cached.url;
+    surface.hidden = false; $('preview-empty').hidden = true; $('preview-loading').hidden = true;
+    setLocalized('preview-caption', () => busy ? tr('Frame preview · Waiting for the PDF…') : tr('Frame preview · Analyze to compare the PDF.'));
+    return;
+  }
+  surface.hidden = true; $('preview-empty').hidden = false;
+  if (unavailableFramePreviews.has(frame.id)) { setLocalized('preview-caption', () => tr('Frame preview unavailable. Analyze to preview the PDF.')); return; }
+  if (busy) return;
+  setLocalized('preview-caption', () => tr('Loading frame preview…'));
+  if (framePreviewRequest?.id === frame.id && framePreviewRequest.generation === sourceGeneration) return;
+  cancelFramePreviewRequest();
+  const requestId = `frame-${sourceGeneration}-${++framePreviewSequence}`;
+  const request: FramePreviewRequest = { requestId, id: frame.id, generation: sourceGeneration, timer: setTimeout(() => {
+    if (framePreviewRequest !== request) return;
+    framePreviewRequest = undefined; framePreviewFailed(request.id);
+  }, 12_000) };
+  framePreviewRequest = request;
+  send({ type: 'preview-frame', requestId, id: frame.id });
+}
+function receiveFramePreview(message: any): void {
+  const request = framePreviewRequest;
+  if (!request || request.requestId !== message.requestId || request.id !== message.id || request.generation !== sourceGeneration || currentFrame()?.id !== request.id || currentFrame()?.original || busy) return;
+  cancelFramePreviewRequest();
+  const bytes = message.bytes;
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  if (message.error || message.format !== 'png' || !(bytes instanceof Uint8Array) || bytes.byteLength < 8 || bytes.byteLength > MAX_FRAME_PREVIEW_BYTES || signature.some((value, index) => bytes[index] !== value)) { framePreviewFailed(request.id); return; }
+  releaseFramePreview(request.id);
+  const url = URL.createObjectURL(new Blob([new Uint8Array(bytes).buffer], { type: 'image/png' }));
+  framePreviews.set(request.id, { url, bytes: bytes.byteLength });
+  while (framePreviews.size > 5 || [...framePreviews.values()].reduce((total, entry) => total + entry.bytes, 0) > MAX_FRAME_PREVIEW_CACHE_BYTES) releaseFramePreview(framePreviews.keys().next().value!);
+  const frame = frames.find(value => value.id === request.id); if (frame && !frame.thumb) frame.thumb = url;
+  updateFramePreview(frame); renderFrames();
+}
 const MAX_CACHE_BYTES = 450 * 1024 * 1024;
 const MAX_VARIANTS_PER_FRAME = 2;
 function cacheBytes(extra?: Uint8Array): number {
@@ -159,7 +226,7 @@ function renderFrames(): void {
     if (frame.thumb) { const image = document.createElement('img'); image.src = frame.thumb; image.alt = ''; image.className = 'frame-thumb'; thumb = image; }
     else { thumb = document.createElement('span'); thumb.className = 'frame-thumb frame-thumb-placeholder'; thumb.textContent = String(index + 1).padStart(2, '0'); }
     const open = document.createElement('button'); open.className = 'frame-open'; open.title = frame.name; open.setAttribute('aria-label', tr('Preview {name}', { name: frame.name }));
-    open.onclick = () => { activeFrameId = frame.id; render(); };
+    open.onclick = () => { if (activeFrameId !== frame.id) cancelFramePreviewRequest(); activeFrameId = frame.id; unavailableFramePreviews.delete(frame.id); render(); };
     const name = document.createElement('span'); name.className = 'frame-name'; name.textContent = frame.name;
     const detail = document.createElement('span'); detail.className = 'frame-detail';
     const variant = frame.variants.get(settingsKey());
@@ -246,8 +313,9 @@ function syncAnalysisPreview(): void {
   panel.classList.toggle('is-analyzing', Boolean(frame && frame.id === activeFrameId && frame.id === displayedPreviewFrameId && visible));
 }
 function updatePreview(frame?: Frame, variant?: Variant): void {
-  const key = frame?.original ? `${sourceGeneration}:${frame.id}:${variant ? settingsKey() : 'original'}` : '';
-  if (key === previewKey) { applyCompare(); syncAnalysisPreview(); return; }
+  if (frame?.original) { cancelFramePreviewRequest(); $('frame-preview-surface').hidden = true; }
+  const key = frame?.original ? `${sourceGeneration}:${frame.id}:${variant ? settingsKey() : 'original'}` : frame ? `${sourceGeneration}:${frame.id}:frame` : '';
+  if (key === previewKey) { if (!frame?.original) updateFramePreview(frame); applyCompare(); syncAnalysisPreview(); return; }
   previewKey = key; const generation = ++previewGeneration;
   visibleDiff = undefined; $<HTMLButtonElement>('visual-check').disabled = true;
   previewReady = false; previewHasAfter = false; displayedPreviewFrameId = ''; applyCompare();
@@ -256,7 +324,7 @@ function updatePreview(frame?: Frame, variant?: Variant): void {
   $('preview-loading').hidden = !frame?.original;
   setLocalized('preview-caption', () => frame?.original ? tr("Rendering the actual PDF…") : tr("The comparison will appear after analysis."));
   syncAnalysisPreview();
-  if (!frame?.original) return;
+  if (!frame?.original) { updateFramePreview(frame); return; }
   const original = frame.original;
   previewQueue = previewQueue.then(async () => {
     if (generation !== previewGeneration) return;
@@ -293,7 +361,7 @@ function updatePreview(frame?: Frame, variant?: Variant): void {
   });
 }
 function queueThumbnail(frame: Frame): void {
-  if (!frame.original || frame.thumb || thumbnailPending.has(frame.id)) return;
+  if (!frame.original || (frame.thumb && ![...framePreviews.values()].some(entry => entry.url === frame.thumb)) || thumbnailPending.has(frame.id)) return;
   thumbnailPending.add(frame.id); const generation = sourceGeneration; const original = frame.original;
   thumbnailQueue = thumbnailQueue.then(async () => {
     if (generation !== sourceGeneration || frame.original !== original) return;
@@ -415,6 +483,7 @@ function failJob(active: Job, error: unknown): void {
 async function startAnalysis(): Promise<void> {
   if (busy || !selectedFrames().length) return;
   startupSignal('dismiss');
+  cancelFramePreviewRequest();
   clearError(); revokeOutput(); review = false;
   const active: Job = { id: `pluma-${Date.now()}-${Math.random().toString(16).slice(2)}`, ids: selectedFrames().map(frame => frame.id), missingIds: [], settings: settings(), key: settingsKey(), abort: new AbortController(), cancelled: false, controllerActive: false, processed: 0, finalizing: false };
   job = active; busy = true; $('progress').style.width = '2%'; setStatus(tr("Preparing analysis…"), tr("The Figma originals are not modified.")); render();
@@ -442,6 +511,7 @@ function renderLayerAudit(message: any): void {
 }
 
 async function onMessage(message: any): Promise<void> {
+  if (message.type === 'frame-preview') { receiveFramePreview(message); return; }
   if (message.type === 'language-preference') {
     if (message.requestId === languageRequestId && languageRevision === languageRequestRevision && isLanguagePreference(message.preference)) { languageRequestId = ''; applyLanguage(message.preference); startupSignal('language'); }
     return;
@@ -459,6 +529,7 @@ async function onMessage(message: any): Promise<void> {
     clearTimeout(layerRequestTimer); layerRequestId = ''; layerCandidates = []; lastLayerAudit = null;
     $<HTMLButtonElement>('layer-audit-refresh').disabled = false; $('layer-findings').replaceChildren();
     setLocalized('layer-audit-summary', tr('Design refreshed. Choose Review again to analyze this selection.'));
+    clearFramePreviews(); framePreviewRefreshPending = false;
     sourceGeneration++; previews.clear(); thumbnailPending.clear(); previewKey = '\0'; revokeOutput(); review = false;
     frames = (message.frames || []).map((frame: any) => ({ id: String(frame.id), name: String(frame.name), width: Number(frame.width), height: Number(frame.height), selected: true, variants: new Map<string, Variant>() }));
     canvasIds = frames.map(frame => frame.id); manualIds = [...canvasIds]; sortOrder = 'canvas';
@@ -482,7 +553,7 @@ async function onMessage(message: any): Promise<void> {
   if (message.type === 'error') { active.controllerActive = false; if (active.cancelled) finishCancelled(active); else failJob(active, new Error(String(message.message))); }
 }
 
-function refresh(): void { if (busy) return; clearError(); send({ type: 'refresh', scope }); }
+function refresh(): void { if (busy) return; clearError(); framePreviewRefreshPending = true; clearFramePreviews(); send({ type: 'refresh', scope }); }
 $('scope-selection').onclick = () => { scope = 'selection'; updateScope(); refresh(); };
 $('scope-page').onclick = () => { scope = 'page'; updateScope(); refresh(); };
 function updateScope(): void { ['selection', 'page'].forEach(value => { const button = $(`scope-${value}`); button.classList.toggle('active', scope === value); button.setAttribute('aria-pressed', String(scope === value)); }); }
@@ -512,6 +583,8 @@ function dragCompare(event: PointerEvent): void { const bounds = $('preview-surf
 stage.onpointerdown = event => { if (!previewReady || !previewHasAfter || view !== 'compare') return; event.preventDefault(); stage.setPointerCapture(event.pointerId); dragCompare(event); };
 stage.onpointermove = event => { if (stage.hasPointerCapture(event.pointerId)) dragCompare(event); };
 stage.onpointerup = event => { if (stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId); };
+$<HTMLImageElement>('frame-preview-image').addEventListener('error', () => { if (!$('frame-preview-surface').hidden && currentFrame() && !currentFrame()!.original) framePreviewFailed(currentFrame()!.id); });
+$<HTMLImageElement>('frame-preview-image').draggable = false;
 $<HTMLImageElement>('preview-before').addEventListener('load', syncAnalysisPreview);
 $<HTMLImageElement>('preview-before').addEventListener('error', syncAnalysisPreview);
 $<HTMLImageElement>('preview-before').draggable = false; $<HTMLImageElement>('preview-after').draggable = false;
@@ -546,7 +619,7 @@ $('layers-close').onclick = () => $<HTMLDialogElement>('layers-dialog').close();
 document.querySelector('.brand')?.addEventListener('click', event => event.preventDefault());
 window.addEventListener('message', event => { const message = event.data?.pluginMessage; if (message && typeof message === 'object' && typeof message.type === 'string') void onMessage(message); });
 window.addEventListener('resize', syncAnalysisPreview);
-window.addEventListener('unload', () => { job?.abort.abort(); if (outputUrl) URL.revokeObjectURL(outputUrl); });
+window.addEventListener('unload', () => { job?.abort.abort(); clearFramePreviews(); if (outputUrl) URL.revokeObjectURL(outputUrl); });
 
 // Standalone preview only. These are actual generated PDFs, clearly labelled as demo pages.
 async function demoPdf(index: number): Promise<Uint8Array> {
@@ -559,6 +632,19 @@ async function demoPdf(index: number): Promise<Uint8Array> {
   page.drawText('PLUMA / LOCAL STUDIO', { x: 70, y: 805, size: 12, color: rgb(.08, .2, 1) }); page.drawText(index === 0 ? 'Space to' : index === 1 ? 'Made for' : 'The next', { x: 70, y: 540, size: 64, color: rgb(.12, .14, .18) }); page.drawText(index === 0 ? 'think.' : index === 1 ? 'the detail.' : 'perspective.', { x: 70, y: 465, size: 64, color: rgb(.08, .2, 1) }); page.drawText('A lighter file. The same point of view.', { x: 73, y: 365, size: 15, color: rgb(.5, .54, .62) }); page.drawText(`0${index + 1}  /  DEMO DOCUMENT`, { x: 73, y: 65, size: 10, color: rgb(.5, .54, .62) }); canvas.width = canvas.height = 1; return pdfDoc.save({ useObjectStreams: true });
 }
 async function demoMessage(message: Record<string, unknown>): Promise<void> {
+  if (message.type === 'preview-frame') {
+    const current = () => { const request = framePreviewRequest; return Boolean(!busy && request && request.requestId === message.requestId && request.id === message.id && request.generation === sourceGeneration); };
+    if (!current()) return;
+    try {
+      const pdf = await demoPdf(Number(String(message.id).slice(-1)) - 1);
+      if (!current()) return;
+      const rendered = await renderPdf(pdf, 1024);
+      if (!current()) return;
+      const bytes = new Uint8Array(await (await fetch(rendered.dataUrl)).arrayBuffer());
+      await onMessage({ type: 'frame-preview', requestId: message.requestId, id: message.id, format: 'png', bytes });
+    } catch { await onMessage({ type: 'frame-preview', requestId: message.requestId, id: message.id, error: 'unavailable' }); }
+    return;
+  }
   if (message.type === 'open-install-guide') { window.open('https://github.com/charliezstong/pluma-pdf/releases/latest', '_blank', 'noopener,noreferrer'); return; }
   if (message.type === 'audit-layers') await onMessage({ type: 'layer-audit', requestId: message.requestId, scannedImages: frames.length, candidates: [] });
   if (message.type === 'refresh') { await onMessage({ type: 'frames', documentName: 'Pluma · Demo', frames: [{ id: 'demo-1', name: '01 · Space to think', width: 1440, height: 900 }, { id: 'demo-2', name: '02 · Made for the detail', width: 1440, height: 900 }, { id: 'demo-3', name: '03 · The next perspective', width: 1440, height: 900 }] }); }

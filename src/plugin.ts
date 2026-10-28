@@ -31,6 +31,13 @@ interface Job {
   stats: ExportStats;
 }
 
+interface FramePreviewRequest {
+  requestId: string;
+  id: string;
+  page: PageNode;
+  generation: number;
+}
+
 class CancelledError extends Error {
   constructor() {
     super(text('cancelled'));
@@ -41,6 +48,8 @@ class CancelledError extends Error {
 const MAX_PAGES = 200;
 const REPLY_TIMEOUT_MS = 180_000;
 const MAX_WARNINGS = 16;
+const FRAME_PREVIEW_MAX_SIDE = 1024;
+const FRAME_PREVIEW_MAX_BYTES = 8 * 1024 * 1024;
 const PAGE_ROOT_TYPES = new Set(['FRAME', 'GROUP', 'INSTANCE', 'COMPONENT', 'COMPONENT_SET']);
 let activeJob: Job | null = null;
 let scope: Scope = 'selection';
@@ -52,6 +61,12 @@ let languagePreference: LanguagePreference = 'auto';
 let languagePreferenceLoaded = false;
 let languagePreferenceRevision = 0;
 let languageWrites: Promise<void> = Promise.resolve();
+let framePreviewGeneration = 0;
+let framePreviewRunning = false;
+let framePreviewClosed = false;
+let pendingFramePreview: FramePreviewRequest | null = null;
+let publishedFramePageId = '';
+const publishedFrameIds = new Set<string>();
 const LANGUAGE_STORAGE_KEY = 'pluma-language';
 const jpegOpacityCache = new Map<string, Promise<boolean>>();
 
@@ -133,8 +148,12 @@ function canvasOrdered(nodes: ExportNode[]): Array<{ node: ExportNode; x: number
 
 function publishFrames(): void {
   if (activeJob) return;
+  invalidateFramePreviews();
   const nodes = scope === 'selection' ? figma.currentPage.selection : figma.currentPage.children;
   const frames = canvasOrdered(withoutAncestorDuplicates(expandSections(nodes, scope === 'page')));
+  publishedFramePageId = figma.currentPage.id;
+  publishedFrameIds.clear();
+  for (const { node } of frames) publishedFrameIds.add(node.id);
   post({
     type: 'frames',
     frames: frames.map(({ node, x, y }) => ({ id: node.id, name: node.name, width: node.width, height: node.height, x, y })),
@@ -205,6 +224,110 @@ function exportDimensions(node: ExportNode): { width: number; height: number } {
   const bounds = node.absoluteBoundingBox;
   if (bounds && bounds.width > 0 && bounds.height > 0) return { width: bounds.width, height: bounds.height };
   return { width: node.width, height: node.height };
+}
+
+function invalidateFramePreviews(clearScope = false): void {
+  framePreviewGeneration++;
+  pendingFramePreview = null;
+  if (clearScope) { publishedFramePageId = ''; publishedFrameIds.clear(); }
+  // Native exportAsync cannot be aborted. Keep the in-flight slot occupied
+  // until it settles, and suppress its result through the generation guard.
+}
+
+function currentFramePreview(request: FramePreviewRequest): boolean {
+  return !framePreviewClosed && !activeJob && request.generation === framePreviewGeneration
+    && request.page.id === figma.currentPage.id && request.page.id === publishedFramePageId
+    && publishedFrameIds.has(request.id);
+}
+
+function postFramePreview(request: FramePreviewRequest, result: Message): void {
+  if (!currentFramePreview(request)) return;
+  try { post({ type: 'frame-preview', requestId: request.requestId, id: request.id, ...result }); }
+  catch { /* A closing interface must not leave an unhandled preview task. */ }
+}
+
+function framePreviewScale(node: ExportNode): number {
+  let longest = Math.max(node.width, node.height);
+  const bounds = [node.absoluteBoundingBox, node.absoluteRenderBounds].filter((value): value is Rect => value !== null && value !== undefined);
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  for (const bound of bounds) {
+    if (![bound.x, bound.y, bound.width, bound.height].every(Number.isFinite) || bound.width <= 0 || bound.height <= 0) {
+      throw new Error(text('previewInvalidBounds'));
+    }
+    left = Math.min(left, bound.x); top = Math.min(top, bound.y);
+    right = Math.max(right, bound.x + bound.width); bottom = Math.max(bottom, bound.y + bound.height);
+  }
+  if (bounds.length) longest = Math.max(longest, right - left, bottom - top);
+  if (!Number.isFinite(longest) || longest <= 0) throw new Error(text('previewInvalidBounds'));
+  // Include effects and rotation, retain the frame's full export bounds, and
+  // leave one pixel for native rounding. Never enlarge a small frame.
+  return Math.min(1, (FRAME_PREVIEW_MAX_SIDE - 1) / longest);
+}
+
+function validateFramePreviewBytes(bytes: Uint8Array): void {
+  if (!(bytes instanceof Uint8Array) || !bytes.length) throw new Error(text('previewInvalidImage'));
+  if (bytes.byteLength > FRAME_PREVIEW_MAX_BYTES) throw new Error(text('previewTooLarge'));
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  if (bytes.length < 33 || !signature.every((value, index) => bytes[index] === value)
+    || bytes[8] !== 0 || bytes[9] !== 0 || bytes[10] !== 0 || bytes[11] !== 13
+    || bytes[12] !== 73 || bytes[13] !== 72 || bytes[14] !== 68 || bytes[15] !== 82) {
+    throw new Error(text('previewInvalidImage'));
+  }
+  const uint32 = (offset: number): number => bytes[offset] * 0x1000000 + bytes[offset + 1] * 0x10000 + bytes[offset + 2] * 0x100 + bytes[offset + 3];
+  const width = uint32(16), height = uint32(20);
+  if (!width || !height || width > FRAME_PREVIEW_MAX_SIDE || height > FRAME_PREVIEW_MAX_SIDE) {
+    throw new Error(text('previewDimensions'));
+  }
+}
+
+async function drainFramePreviews(): Promise<void> {
+  if (framePreviewRunning || framePreviewClosed) return;
+  framePreviewRunning = true;
+  try {
+    while (pendingFramePreview && !framePreviewClosed) {
+      const request = pendingFramePreview;
+      pendingFramePreview = null;
+      if (!currentFramePreview(request)) continue;
+      try {
+        const node = await figma.getNodeByIdAsync(request.id);
+        if (!currentFramePreview(request)) continue;
+        if (!node || node.removed || !isExportNode(node) || pageOf(node)?.id !== request.page.id) {
+          throw new Error(text('previewUnavailable'));
+        }
+        const scale = framePreviewScale(node);
+        if (!currentFramePreview(request)) continue;
+        const bytes = await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: scale }, contentsOnly: true, useAbsoluteBounds: true, colorProfile: 'SRGB' });
+        if (!currentFramePreview(request)) continue;
+        if (node.removed || pageOf(node)?.id !== request.page.id) throw new Error(text('previewUnavailable'));
+        validateFramePreviewBytes(bytes);
+        // Transfer only the encoded range, even if the host returned a view
+        // into a larger backing buffer. The message obeys the same byte cap.
+        postFramePreview(request, { bytes: new Uint8Array(bytes), format: 'png' });
+      } catch (error) { postFramePreview(request, { error: messageError(error) }); }
+    }
+  } finally { framePreviewRunning = false; }
+}
+
+function requestFramePreview(message: Message): void {
+  if (framePreviewClosed || typeof message.requestId !== 'string' || !message.requestId || message.requestId.length > 128
+    || typeof message.id !== 'string' || !message.id || message.id.length > 128) return;
+  const request: FramePreviewRequest = { requestId: message.requestId, id: message.id, page: figma.currentPage, generation: ++framePreviewGeneration };
+  pendingFramePreview = null;
+  if (activeJob) {
+    // Busy responses are scoped to this request; no PNG export is started.
+    try { post({ type: 'frame-preview', requestId: request.requestId, id: request.id, error: text('previewBusy') }); }
+    catch { /* The interface may have closed. */ }
+    return;
+  }
+  if (publishedFramePageId !== request.page.id || !publishedFrameIds.has(request.id)) {
+    try { post({ type: 'frame-preview', requestId: request.requestId, id: request.id, error: text('previewUnavailable') }); }
+    catch { /* The interface may have closed. */ }
+    return;
+  }
+  // One native PNG export at a time; replace the pending request rather than
+  // accumulating renders while the user moves through the page list.
+  pendingFramePreview = request;
+  void drainFramePreviews();
 }
 
 function validatedRequest(message: Message): { ids: string[]; mode: ExportMode; scale: number; quality: number } {
@@ -399,11 +522,15 @@ figma.ui.onmessage = (message: unknown): void => {
     figma.openExternal('https://github.com/charliezstong/pluma-pdf/releases/latest');
   } else if (message.type === 'refresh') {
     activeAuditRequest = null;
+    invalidateFramePreviews();
     if (message.scope === 'selection' || message.scope === 'page') scope = message.scope;
     publishFrames();
   } else if (message.type === 'export') {
     activeAuditRequest = null;
+    invalidateFramePreviews();
     void exportDocument(message);
+  } else if (message.type === 'preview-frame') {
+    requestFramePreview(message);
   } else if (message.type === 'audit-layers') {
     void auditLayers(message);
   } else if (message.type === 'focus-node') {
@@ -420,16 +547,20 @@ figma.on('selectionchange', () => {
     const expected = pendingFocusSelection; pendingFocusSelection = null;
     if (figma.currentPage.selection.length === 1 && figma.currentPage.selection[0].id === expected) return;
   }
+  invalidateFramePreviews();
   // A canvas selection cannot change page scope. Republishing it would reset
   // reviewed pages and discard their measured PDFs in the UI.
   if (scope === 'selection') publishFrames();
 });
 figma.on('currentpagechange', () => {
+  invalidateFramePreviews(true);
   activeAuditRequest = null; pendingFocusSelection = null;
   if (activeJob) cancel(activeJob);
   else publishFrames();
 });
 figma.on('close', () => {
+  framePreviewClosed = true;
+  invalidateFramePreviews(true);
   activeAuditRequest = null; pendingFocusSelection = null;
   if (!activeJob) return;
   cancel(activeJob);

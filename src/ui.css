@@ -9,6 +9,10 @@
   --blue: #174191;
   --blue-hover: #2052ab;
   --blue-pressed: #123371;
+  --primary-gradient: radial-gradient(ellipse 90% 110% at 5% -60%, #b3f8ff 0%, #37cfff 28%, transparent 68%), radial-gradient(ellipse 65% 180% at 105% 115%, #24b8ff 0%, transparent 70%), linear-gradient(110deg, #0088ff 0%, #0054ff 28%, #0437dc 62%, #0068ff 100%);
+  --primary-rim: #59c8ff;
+  --primary-highlight: #b3f8ff8c;
+  --primary-shadow: #0049e026;
   --blue-soft: #f1f2f4;
   --blue-border: #c7c9d2;
   --text: #252525;
@@ -126,6 +130,9 @@ input[type=range] { accent-color: var(--blue); cursor: pointer; }
 .preview-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 9px; background: var(--canvas-overlay); color: var(--canvas-text); font-size: 11px; z-index: 5; }
 .spinner { width: 14px; height: 14px; border: 1.5px solid var(--canvas-line); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.frame-preview-surface { position: absolute; inset: 18px; }
+.frame-preview-surface>img { display: block; width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: drop-shadow(0 3px 7px var(--shadow)); }
+.frame-preview-tag { left: 5px; }
 .preview-surface { position: absolute; inset: 18px; }
 .preview-surface img { height: 100%; width: 100%; object-fit: contain; display: block; pointer-events: none; filter: drop-shadow(0 3px 7px var(--shadow)); }
 .preview-after-layer { position: absolute; inset: 0; clip-path: inset(0 0 0 50%); overflow: hidden; }
@@ -232,10 +239,10 @@ input[type=range] { accent-color: var(--blue); cursor: pointer; }
 .action-footer:has(#download:not([hidden])) .footer-state strong { display: none; }
 .action-footer:has(#download:not([hidden])) #status-detail { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 10px; line-height: 14px; font-variant-numeric: tabular-nums; }
 .footer-actions { display: flex; align-items: center; gap: 8px; width: 100%; }
-.primary { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 46px; padding: 13px 20px; border: 1px solid var(--blue); border-radius: 24px; color: var(--surface); background: var(--blue); font-size: 12px; line-height: 18px; font-weight: 600; box-shadow: 0 2px 5px var(--shadow); }
+.primary { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 46px; padding: 13px 20px; border: 1px solid var(--primary-rim); border-radius: 24px; color: var(--surface); background: var(--primary-gradient); font-size: 12px; line-height: 18px; font-weight: 600; box-shadow: inset 0 1px 0 var(--primary-highlight), inset 0 -1px 0 #0638cc66, 0 3px 8px var(--primary-shadow); transition: filter .16s ease, box-shadow .16s ease; }
 .primary svg { flex: none; width: 13px; height: 13px; opacity: .8; }
-.primary:hover:not(:disabled) { background: var(--blue-hover); }
-.primary:active:not(:disabled) { background: var(--blue-pressed); }
+.primary:hover:not(:disabled) { filter: brightness(1.06); }
+.primary:active:not(:disabled) { filter: brightness(.94); box-shadow: inset 0 1px 3px #0638cc55, 0 1px 3px var(--primary-shadow); }
 .primary:disabled { color: var(--faint); background: var(--control); border-color: var(--line); box-shadow: none; opacity: 1; }
 .secondary-button { border: 1px solid var(--line); border-radius: 5px; background: var(--surface); color: var(--muted); font-size: 11px; line-height: 16px; padding: 6px 10px; }
 .secondary-button:hover:not(:disabled) { background: var(--control-hover); }
@@ -344,7 +351,7 @@ dialog li strong { color: var(--secondary); font-weight: 550; }
   .inspector { padding-bottom: 8px; }
   .metrics { min-height: 52px; padding: 7px 2px; margin-bottom: 8px; }
   .action-footer { padding-bottom: 11px; gap: 7px; }
-  .preview-surface { inset: 13px 15px; }
+  .preview-surface, .frame-preview-surface { inset: 13px 15px; }
 }
 @media (max-width: 420px) {
   .app-header { padding: 0 13px; } .header-actions { gap: 6px; }

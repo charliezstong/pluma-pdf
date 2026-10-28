@@ -88,4 +88,3 @@ test('reduced motion skips the visual fade after initialization', () => {
   const h = startup({ reducedMotion: true }); h.signal('frames'); h.signal('language'); h.advance(350);
   assert.equal(h.splash.hidden, true); assert.equal(h.attributes.has('inert'), false); assert.equal(h.timers.size, 0);
 });
-

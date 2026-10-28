@@ -21,7 +21,7 @@ async function fixture(t) {
     'scripts/windows/install.cmd': '@echo off', 'scripts/windows/start-engine.cmd': '@echo off', 'scripts/windows/preview.cmd': '@echo off',
     'dist/code.js': '// built', 'dist/ui.html': '<html>preview</html>',
     'engine/server.mjs': '// server', 'src/plugin.ts': '// source', 'scripts/local.mjs': '// local',
-    'licenses/library.txt': 'license', 'docs/INSTALL.md': 'install',
+    'licenses/library.txt': 'license', 'docs/INSTALL.md': 'install', 'docs/PRIVACY.md': 'privacy policy',
     'work/private.pdf': 'PRIVATE PDF', 'node_modules/private.js': 'PRIVATE DEPENDENCY',
     'docs/brandbook.PDF': 'PRIVATE PDF', 'engine/secret.pdf': 'PRIVATE PDF',
     'docs/.env': 'TOKEN', 'docs/private-metrics.json': 'PRIVATE METRICS', 'docs/private-notes.md': 'PRIVATE NOTES',
@@ -56,6 +56,7 @@ test('release allowlist includes the installable plugin and excludes PDFs, work,
   const root = await fixture(t);
   const files = await collectReleaseFiles(root);
   const paths = files.map(file => file.path);
+  assert.equal(files.find(file => file.path === 'docs/PRIVACY.md')?.bytes.toString('utf8'), 'privacy policy');
   for (const required of ['AGENTS.md', 'tsconfig.json', 'tests/sample.test.mjs', 'manifest.json', 'dist/code.js', 'dist/ui.html', 'engine/server.mjs', 'package-lock.json', 'docs/INSTALL.md', 'scripts/local.mjs', 'scripts/build.mjs', 'scripts/preview.mjs', 'scripts/macos/install.command', 'scripts/macos/start-engine.command', 'scripts/macos/preview.command', 'scripts/windows/install.cmd', 'scripts/windows/start-engine.cmd', 'scripts/windows/preview.cmd']) assert.ok(paths.includes(required), required);
   for (const path of paths) assert.doesNotMatch(path, /\.pdf$|node_modules|work\/|release\/|\.git\/|\.env$|private-metrics|private-notes/i);
   assert.equal(files.find(file => file.path === 'scripts/macos/start-engine.command').mode, 0o100755);

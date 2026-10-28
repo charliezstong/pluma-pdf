@@ -2,13 +2,13 @@
 
 Pluma PDF is imported as a development plugin in **Figma Desktop**. You do not need a paid plugin, a Community publication, or a compression account. Keep the entire folder in a fixed location: Figma reads the plugin from that folder.
 
-These instructions describe release **1.2.0**. The interface automatically detects English, Spanish or Portuguese, with English as its fallback. These instructions use the English labels.
+These instructions describe release **1.3.0**. The interface automatically detects English, Spanish or Portuguese, with English as its fallback. These instructions use the English labels.
 
 ## Before you start
 
 You need Figma Desktop and **Node.js 22.13.0 or later**, with npm. You can use a compatible LTS version from the [official Node.js installer](https://nodejs.org/en/download). The first installation downloads npm dependencies and requires internet access. After that, the engine processes PDFs on your computer.
 
-For the packaged installation, download the `PlumaPDF-1.2.0.zip` release asset. It includes the prebuilt `dist/code.js` and `dist/ui.html` bundles. Extract the entire archive and keep the folder somewhere stable, such as Documents. On Windows, use **Extract all** before opening `.cmd` files. Do not run the plugin from inside the ZIP. Do not copy `node_modules` from another computer: Sharp needs the binary for your operating system and processor.
+For the packaged installation, download the `PlumaPDF-1.3.0.zip` release asset. It includes the prebuilt `dist/code.js` and `dist/ui.html` bundles. Extract the entire archive and keep the folder somewhere stable, such as Documents. On Windows, use **Extract all** before opening `.cmd` files. Do not run the plugin from inside the ZIP. Do not copy `node_modules` from another computer: Sharp needs the binary for your operating system and processor.
 
 A source checkout or GitHub's automatic **Source code** download does not include `dist/`, which is generated output ignored by Git. You can use the same installation steps: the installer downloads dependencies and builds the bundles from source. Finish installation before importing `manifest.json` into Figma.
 
@@ -19,7 +19,7 @@ The manifest remains at the extracted folder's root. Platform launchers are unde
 1. Open `scripts/macos/install.command`. It installs the versions in `package-lock.json` with `npm ci` and prepares the plugin. Wait for the installation-complete message.
 2. Open `scripts/macos/start-engine.command`. Keep that window open while using **Smart**.
 3. Open a design file in Figma Desktop. Choose **Plugins → Development → Import plugin from manifest…** and select `manifest.json` at the extracted folder's root.
-4. Open **Plugins → Development → Pluma PDF · Local**. Select frames or choose **Page**, then click **Analyze and preview**.
+4. Open **Plugins → Development → Pluma PDF — Export & Compress**. Select frames or choose **Page**, then click **Analyze and preview**.
 
 If macOS does not open a `.command` file, open Terminal, type `zsh ` with a trailing space, drag the file into Terminal, and press Return. If a download requires authorization, check its origin and use macOS opening options; you do not need to disable system protections.
 
@@ -28,7 +28,7 @@ If macOS does not open a `.command` file, open Terminal, type `zsh ` with a trai
 1. Double-click `scripts/windows/install.cmd`. Wait for the installation-complete message.
 2. Open `scripts/windows/start-engine.cmd`. Keep that window open while using **Smart**.
 3. In Figma Desktop, choose **Plugins → Development → Import plugin from manifest…** and select `manifest.json` at the extracted folder's root.
-4. Open **Plugins → Development → Pluma PDF · Local** and analyze your frames with **Analyze and preview**.
+4. Open **Plugins → Development → Pluma PDF — Export & Compress** and analyze your frames with **Analyze and preview**.
 
 If you just installed Node.js and the launcher cannot find it, close that window and open a new one. Administrator privileges are not required. The Windows launchers share the same installation and checking code as macOS; the workflow has not yet been tested manually on a real Windows computer. Windows ARM64 also depends on Sharp's experimental support for that architecture.
 
@@ -70,7 +70,7 @@ From a terminal in the plugin folder, run:
 npm start
 ```
 
-This prepares dependencies and rebuilds missing or invalid manifest targets before starting or reusing the engine. You can also use `scripts/macos/start-engine.command` or `scripts/windows/start-engine.cmd`. Wait for startup to finish, then reopen **Pluma PDF · Local** in Figma. If you moved the plugin folder, reimport `manifest.json` from the new location.
+This prepares dependencies and rebuilds missing or invalid manifest targets before starting or reusing the engine. You can also use `scripts/macos/start-engine.command` or `scripts/windows/start-engine.cmd`. Wait for startup to finish, then reopen **Pluma PDF — Export & Compress** in Figma. If you moved the plugin folder, reimport `manifest.json` from the new location.
 
 To rebuild the bundles without starting the engine, use:
 
@@ -122,7 +122,7 @@ npm run check
 node scripts/package.mjs
 ```
 
-The packager does not run another build: it distributes the bundles that were already checked. For version 1.2.0, it generates `release/PlumaPDF-1.2.0.zip`, its SHA-256, and an inventory containing each file's hash. It also accepts `node scripts/package.mjs --out /path/to/another/folder`.
+The packager does not run another build: it distributes the bundles that were already checked. For version 1.3.0, it generates `release/PlumaPDF-1.3.0.zip`, its SHA-256, and an inventory containing each file's hash. It also accepts `node scripts/package.mjs --out /path/to/another/folder`.
 
 The installable release archive includes the manifest, prebuilt `dist/` bundles, engine, source, platform launchers, instructions, licenses, and locked dependency files. These bundles remain outside Git and its automatic source archives. The packager uses an explicit list of files and extensions; it excludes `node_modules`, `.git`, working directories, and PDFs. The ZIP works as a portable folder, although each computer must install Node.js and download its own dependencies.
 

@@ -9,7 +9,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = [
   'manifest.json', 'package.json', 'package-lock.json', 'tsconfig.json',
   'README.md', 'AGENTS.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE',
-  'docs/INSTALL.md', 'docs/ARCHITECTURE.md', 'docs/CONTRIBUTING.md', 'docs/BRAND.md',
+  'docs/INSTALL.md', 'docs/PRIVACY.md', 'docs/ARCHITECTURE.md', 'docs/CONTRIBUTING.md', 'docs/BRAND.md',
 ];
 const DIRECTORIES = {
   dist: ['.js', '.html'], engine: ['.mjs'], src: ['.ts', '.html', '.css'],

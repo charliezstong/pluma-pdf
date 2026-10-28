@@ -1,6 +1,6 @@
 {
-  "name": "Pluma PDF \u00b7 Local",
-  "id": "pluma-pdf-local-dev",
+  "name": "Pluma PDF — Export & Compress",
+  "id": "1697169100357342944",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",

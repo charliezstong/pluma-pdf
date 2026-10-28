@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 
 const source = await readFile(new URL('../src/ui.ts', import.meta.url), 'utf8');
 const code = (await build({
-  stdin: { contents: source + `\n(globalThis as any).__ui = { onMessage, startAnalysis, select: (id: string) => { activeFrameId = id; render(); }, original: (id: string, bytes: Uint8Array) => { frames.find(frame => frame.id === id)!.original = bytes; }, include: (id: string, selected: boolean) => { frames.find(frame => frame.id === id)!.selected = selected; }, state: () => ({ activeFrameId, busy, job, output, previewReady, displayedPreviewFrameId, frames }) };`, resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' },
+  stdin: { contents: source + `\n(globalThis as any).__ui = { onMessage, startAnalysis, demoPreview: (message: any) => { demoPdf = async () => new Uint8Array([80, 99]); return demoMessage(message); }, select: (id: string) => { activeFrameId = id; render(); }, original: (id: string, bytes: Uint8Array) => { frames.find(frame => frame.id === id)!.original = bytes; }, include: (id: string, selected: boolean) => { frames.find(frame => frame.id === id)!.selected = selected; }, state: () => ({ activeFrameId, busy, job, output, previewReady, displayedPreviewFrameId, frames, framePreviews, framePreviewRequest }) };`, resolveDir: fileURLToPath(new URL('../src/', import.meta.url)), loader: 'ts' },
   bundle: true, write: false, format: 'iife', target: 'es2020',
   plugins: [{ name: 'synthetic-ui-dependencies', setup(builder) {
     builder.onResolve({ filter: /^(pdf-lib|\.\/pdf-preview|\.\/visual-diff)$/ }, args => ({ path: args.path, namespace: 'fixture' }));
@@ -24,7 +24,8 @@ function deferred() { let resolve; const promise = new Promise(value => { resolv
 function response(bytes) { return { ok: true, headers: { get: () => '0' }, json: async () => ({ name: 'Pluma PDF', engine: 'sharp' }), arrayBuffer: async () => Uint8Array.from(bytes).buffer }; }
 
 function harness({ holdRenders = false } = {}) {
-  const nodes = new Map(), timers = new Set(), messages = [], requests = [], renders = [], windowEvents = new Map();
+  const nodes = new Map(), timers = new Set(), messages = [], requests = [], renders = [], windowEvents = new Map(), timerCallbacks = new Map(), createdUrls = [], revokedUrls = [];
+  let urlSequence = 0;
   function element(tag = 'div') {
     const classes = new Set(), events = new Map(), properties = new Map();
     let src = '', className = '';
@@ -36,7 +37,7 @@ function harness({ holdRenders = false } = {}) {
       get className() { return className; }, set className(value) { className = value; },
       get src() { return src; }, set src(value) { src = value; this.complete = false; this.naturalWidth = 0; this.naturalHeight = 0; },
       style: { setProperty: (name, value) => properties.set(name, value), removeProperty: name => properties.delete(name), getPropertyValue: name => properties.get(name) ?? '' },
-      setAttribute() {}, append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; }, remove() {}, click() { this.onclick?.(); },
+      setAttribute() {}, removeAttribute(name) { if (name === 'src') this.src = ''; }, append(...children) { this.children.push(...children); }, replaceChildren(...children) { this.children = children; }, remove() {}, click() { this.onclick?.(); },
       addEventListener(type, listener) { if (!events.has(type)) events.set(type, new Set()); events.get(type).add(listener); },
       dispatch(type) { for (const listener of events.get(type) ?? []) listener({}); },
       getBoundingClientRect() { return { width: this.clientWidth, height: this.clientHeight, left: 0 }; },
@@ -53,12 +54,13 @@ function harness({ holdRenders = false } = {}) {
     window, parent: { postMessage: message => messages.push(message.pluginMessage) }, navigator: { languages: ['en'], language: 'en' },
     document: { documentElement: {}, getElementById: node, createElement: element, createTextNode: text => ({ textContent: text }), querySelectorAll: () => [], querySelector: selector => selector === '.preview-panel' ? node('panel') : selector === '.brand' ? node('brand') : null, body: element('body') },
     Blob, Uint8Array, AbortController, URLSearchParams, Intl, Date, Math,
-    URL: class extends URL { static createObjectURL() { return 'blob:synthetic'; } static revokeObjectURL() {} },
+    URL: class extends URL { static createObjectURL(blob) { const url = `blob:synthetic-${++urlSequence}`; createdUrls.push({ url, blob }); return url; } static revokeObjectURL(url) { revokedUrls.push(url); } },
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
-    setTimeout(callback, delay) { const timer = setTimeout(callback, delay); timer.unref(); timers.add(timer); return timer; }, clearTimeout(timer) { clearTimeout(timer); timers.delete(timer); },
+    setTimeout(callback, delay) { const timer = setTimeout(callback, delay); timer.unref(); timers.add(timer); timerCallbacks.set(timer, {callback, delay}); return timer; }, clearTimeout(timer) { clearTimeout(timer); timers.delete(timer); timerCallbacks.delete(timer); },
     __pdf: pdf,
     __renderPdf(bytes, maxWidth) { const wait = deferred(); const render = { bytes: [...bytes], maxWidth, resolve: () => wait.resolve({ dataUrl: `data:synthetic/${bytes[1] ?? bytes[0]}/${maxWidth}`, width: 400, height: 300 }) }; renders.push(render); if (!holdRenders || maxWidth === 120) render.resolve(); return wait.promise; },
     async fetch(url, options) {
+      if (url.startsWith('data:')) return response([137, 80, 78, 71, 13, 10, 26, 10, 0]);
       if (url.endsWith('/health')) return response([]);
       if (url.endsWith('/pdf/deduplicate')) return response(new Uint8Array(await options.body.arrayBuffer()));
       const wait = deferred(); requests.push({ resolve: bytes => wait.resolve(response(bytes)), fail: () => wait.resolve({ ok: false, status: 500, json: async () => ({ error: { message: 'Synthetic failure' } }) }) }); return wait.promise;
@@ -66,7 +68,9 @@ function harness({ holdRenders = false } = {}) {
   });
   vm.runInContext(code, context);
   return {
-    ui: context.__ui, node, messages, requests, renders,
+    ui: context.__ui, node, messages, requests, renders, createdUrls, revokedUrls,
+    timeoutPreview() { const [timer, value] = [...timerCallbacks].find(([, value]) => value.delay === 12_000) ?? []; assert.ok(value, 'preview timeout exists'); clearTimeout(timer); timers.delete(timer); timerCallbacks.delete(timer); value.callback(); },
+    unload() { for (const listener of windowEvents.get('unload') ?? []) listener(); },
     async frames(ids) { await this.ui.onMessage({ type: 'frames', frames: ids.map(id => ({ id, name: id, width: 400, height: 300 })) }); },
     page(index, bytes = [80, index + 10, 20, 30]) { return this.ui.onMessage({ type: 'page', jobId: this.ui.state().job.id, format: 'pdf', index, bytes }); },
     loadImage(width = 400, height = 300) { const image = node('preview-before'); image.complete = true; image.naturalWidth = width; image.naturalHeight = height; image.dispatch('load'); },
@@ -156,4 +160,92 @@ test('engine failure stops the scan and retains the original without a successfu
   assert.equal(h.scanning(), false); assert.equal(h.ui.state().busy, false); assert.equal(h.node('panel').dataset.processingFrameId, undefined);
   assert.deepEqual(Array.from(h.ui.state().frames[0].original), [80, 10, 20, 30]);
   assert.ok(h.messages.find(message => message.type === 'page-ack')?.error);
+});
+
+const png = (size = 16) => { const bytes = new Uint8Array(size); bytes.set([137, 80, 78, 71, 13, 10, 26, 10]); return bytes; };
+const previewRequests = h => h.messages.filter(message => message.type === 'preview-frame');
+async function deliverPreview(h, request = previewRequests(h).at(-1), bytes = png()) {
+  await h.ui.onMessage({ type: 'frame-preview', requestId: request.requestId, id: request.id, format: 'png', bytes });
+}
+
+test('the selected frame requests a separate PNG pane without PDF state, measures, or scan', async t => {
+  const h = harness(); t.after(() => h.close()); await h.frames(['a', 'b']);
+  assert.equal(previewRequests(h).length, 1); assert.equal(previewRequests(h)[0].id, 'a');
+  await deliverPreview(h);
+  assert.equal(h.node('frame-preview-surface').hidden, false); assert.equal(h.node('preview-surface').hidden, true);
+  assert.equal(h.ui.state().previewReady, false); assert.equal(h.scanning(), false);
+  assert.equal(h.ui.state().frames[0].original, undefined); assert.equal(h.ui.state().frames[0].variants.size, 0);
+  assert.equal(h.node('page-metrics').hidden, true); assert.match(h.node('preview-caption').textContent, /^Frame preview · Analyze/);
+  const originalUrl = h.node('frame-preview-image').src;
+  h.ui.select('a'); assert.equal(previewRequests(h).length, 1); assert.equal(h.node('frame-preview-image').src, originalUrl);
+  h.ui.select('b'); const second = previewRequests(h).at(-1); assert.equal(second.id, 'b');
+  await deliverPreview(h, previewRequests(h)[0]); assert.equal(h.ui.state().framePreviews.size, 1, 'late response cannot populate or redirect another frame');
+  await deliverPreview(h, second); assert.equal(h.node('frame-preview-image').src, h.ui.state().framePreviews.get('b').url);
+});
+
+test('starting analysis ignores late PNGs and switches the frame pane to the actual PDF', async t => {
+  const h = harness(); t.after(() => h.close()); await h.frames(['a']); const request = previewRequests(h)[0];
+  await deliverPreview(h, request); const url = h.node('frame-preview-image').src;
+  await h.ui.startAnalysis(); assert.equal(h.node('frame-preview-image').src, url, 'cached design may stay while its native PDF is read');
+  await deliverPreview(h, request); assert.equal(h.createdUrls.filter(value => value.blob.type === 'image/png').length, 1);
+  const pending = h.page(0); await eventually(() => h.requests.length === 1 && h.ui.state().previewReady, 'actual PDF');
+  assert.equal(h.node('frame-preview-surface').hidden, true); assert.equal(h.node('preview-surface').hidden, false);
+  h.loadImage(); assert.equal(h.scanning(), true); h.requests[0].resolve([80, 1]); await pending;
+});
+
+test('refresh invalidates the source generation, revokes pane/thumb URLs, and ignores earlier bytes', async t => {
+  const h = harness(); t.after(() => h.close()); await h.frames(['a']); const old = previewRequests(h)[0];
+  await deliverPreview(h, old); const oldUrl = h.node('frame-preview-image').src;
+  assert.equal(h.ui.state().frames[0].thumb, oldUrl); h.node('refresh').click();
+  assert.equal(h.node('frame-preview-surface').hidden, true); assert.equal(h.node('frame-preview-image').src, '');
+  assert.ok(h.revokedUrls.includes(oldUrl)); assert.equal(h.ui.state().frames[0].thumb, undefined);
+  await h.frames(['a']); const current = previewRequests(h).at(-1); assert.notEqual(current.requestId, old.requestId);
+  await deliverPreview(h, old); assert.equal(h.ui.state().framePreviews.size, 0);
+  await deliverPreview(h, current); assert.equal(h.ui.state().framePreviews.size, 1);
+});
+
+test('frame PNG cache bounds count, encoded bytes, individual size, and releases evicted thumbnails', async t => {
+  const h = harness(); t.after(() => h.close()); const ids = ['a', 'b', 'c', 'd', 'e', 'f']; await h.frames(ids);
+  for (const id of ids) { h.ui.select(id); await deliverPreview(h); }
+  assert.equal(h.ui.state().framePreviews.size, 5); assert.equal(h.ui.state().frames[0].thumb, undefined);
+  assert.ok(h.revokedUrls.length >= 1);
+  await h.frames(ids);
+  for (const id of ids.slice(0, 3)) { h.ui.select(id); await deliverPreview(h, undefined, png(8 * 1024 * 1024)); }
+  assert.equal(h.ui.state().framePreviews.size, 2);
+  assert.ok([...h.ui.state().framePreviews.values()].reduce((sum, value) => sum + value.bytes, 0) <= 20 * 1024 * 1024);
+  h.ui.select('d'); await deliverPreview(h, undefined, png(8 * 1024 * 1024 + 1));
+  assert.equal(h.ui.state().framePreviews.has('d'), false); assert.match(h.node('preview-caption').textContent, /unavailable/);
+  const live = [...h.ui.state().framePreviews.values()].map(value => value.url); h.unload();
+  assert.ok(live.every(url => h.revokedUrls.includes(url))); assert.equal(h.ui.state().framePreviews.size, 0);
+});
+
+test('PNG timeout and protocol errors are nonblocking and preserve unrelated error messages', async t => {
+  const h = harness(); t.after(() => h.close()); await h.frames(['a', 'b']);
+  h.node('error').textContent = 'Existing analysis error'; h.node('error').hidden = false; h.timeoutPreview();
+  assert.match(h.node('preview-caption').textContent, /unavailable/); assert.equal(h.node('error').textContent, 'Existing analysis error');
+  assert.equal(h.ui.state().busy, false); assert.equal(h.node('preview-empty').hidden, false);
+  h.ui.select('b'); const request = previewRequests(h).at(-1);
+  await h.ui.onMessage({ type: 'frame-preview', requestId: request.requestId, id: request.id, error: 'Unavailable' });
+  assert.match(h.node('preview-caption').textContent, /unavailable/); assert.equal(h.node('error').textContent, 'Existing analysis error');
+  await h.ui.startAnalysis(); assert.ok(h.messages.find(message => message.type === 'export'));
+});
+
+test('preanalysis preview captions retranslate without replacing PNG bytes or requesting Figma again', async t => {
+  const h = harness(); t.after(() => h.close()); await h.frames(['a']); await deliverPreview(h);
+  const url = h.node('frame-preview-image').src; const count = previewRequests(h).length;
+  h.node('language').value = 'es'; h.node('language').onchange(); assert.match(h.node('preview-caption').textContent, /^Vista del frame/);
+  h.node('language').value = 'pt'; h.node('language').onchange(); assert.match(h.node('preview-caption').textContent, /^Prévia do frame/);
+  assert.equal(h.node('frame-preview-image').src, url); assert.equal(previewRequests(h).length, count);
+});
+
+
+test('standalone demo renders a synthetic PNG and discards a superseded demo render without storing a PDF', async t => {
+  const h = harness({ holdRenders: true }); t.after(() => h.close()); await h.frames(['demo-1', 'demo-2']);
+  const old = h.ui.demoPreview(previewRequests(h).at(-1)); await eventually(() => h.renders.length === 1, 'old demo PNG render');
+  h.ui.select('demo-2'); h.renders[0].resolve(); await old;
+  assert.equal(h.ui.state().framePreviews.size, 0, 'superseded demo work is not cached');
+  const current = h.ui.demoPreview(previewRequests(h).at(-1)); await eventually(() => h.renders.length === 2, 'current demo PNG render');
+  h.renders[1].resolve(); await current;
+  assert.equal(h.ui.state().framePreviews.has('demo-2'), true); assert.equal(h.node('frame-preview-surface').hidden, false);
+  assert.ok(Array.from(h.ui.state().frames).every(frame => !frame.original && frame.variants.size === 0));
 });

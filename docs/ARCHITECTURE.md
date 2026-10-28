@@ -162,3 +162,7 @@ The public repository contains software, generic documentation, and synthetic sa
 `src/i18n.ts` resolves the first supported language from `navigator.languages`, then `navigator.language`, with English fallback. These are user-agent language preferences, not a guarantee of the operating-system locale; see [MDN Navigator.languages](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/languages). Automatic mode responds to `languagechange`.
 
 The UI sends an effective `set-language` locale before requesting frames, then loads the saved `auto`/`en`/`es`/`pt` preference from Figma client storage. Request IDs and a manual-change revision prevent a late read from replacing a newer choice; serialized controller writes preserve the most recent preference. Language changes rerender interface text and cached diagnostics without changing export settings, selected IDs, original PDF bytes, or completed outputs.
+
+## Frame preview before analysis
+
+The UI requests the active published frame with `preview-frame` and a request ID. The controller performs a read-only PNG export, bounded to 1024 pixels on its longest side and 8 MiB. One export runs at a time; a newer pending request replaces older work. Page changes, refreshes and PDF jobs invalidate pending results. The UI keeps a separate five-entry / 20 MiB blob cache, revokes URLs on eviction and refresh, and ignores late responses. A timeout only removes this optional preview. These PNGs never become PDF originals or compression measurements. Analyze still captures and compares actual native PDF bytes.

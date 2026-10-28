@@ -8,5 +8,5 @@ const directory = join(root, 'assets/brand');
 for (const size of [128, 256, 512]) {
   await sharp(join(directory, 'icon.png')).resize(size, size, { fit: 'contain' }).png().toFile(join(directory, `icon-${size}.png`));
 }
-await sharp(join(directory, 'cover.png')).resize({ width: 1600, withoutEnlargement: true }).webp({ quality: 90 }).toFile(join(directory, 'cover.webp'));
+await sharp(join(directory, 'cover.png')).webp({ quality: 94 }).toFile(join(directory, 'cover.webp'));
 console.log('Brand delivery assets exported from the source PNGs.');
