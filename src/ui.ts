@@ -85,6 +85,7 @@ function setMeasuredValue(id: string, bytes?: number): void { const node = $(id)
 function renderFrames(): void {
   const container = $('frames');
   const scroll = container.scrollTop;
+  const horizontalScroll = container.scrollLeft;
   container.replaceChildren();
   const selected = selectedFrames().length;
   $('page-count').textContent = `${selected} / ${frames.length}`;
@@ -115,6 +116,7 @@ function renderFrames(): void {
   });
   if (!shown) { const empty = document.createElement('div'); empty.className = 'list-empty'; empty.textContent = frames.length ? 'No hay páginas con ese nombre.' : 'Selecciona tus frames en Figma y pulsa ↻ para cargarlos.'; container.append(empty); }
   container.scrollTop = scroll;
+  container.scrollLeft = horizontalScroll;
 }
 
 function render(): void {
@@ -136,6 +138,7 @@ function render(): void {
   $('mode-help').textContent = mode === 'hybrid' ? 'Optimiza las imágenes del PDF. Conserva el texto y los vectores.' : mode === 'compact' ? 'Página como imagen. El texto deja de ser seleccionable.' : 'Une los PDF nativos de Figma. No optimiza sus imágenes.';
   $('profile-help').textContent = mode === 'compact' ? 'Límite por página. Revisa el texto antes de descargar.' : mode === 'native' ? 'La calidad del archivo original permanece intacta.' : 'Límite por imagen. El texto conserva su nitidez.';
   const frame = currentFrame(); const variant = frame?.variants.get(settingsKey());
+  $('page-metrics').hidden = !frame?.original;
   setMeasuredValue('metric-original', frame?.original?.length);
   setMeasuredValue('metric-after', variant?.bytes.length);
   $('metric-saving').textContent = frame?.original && variant ? deltaText(frame.original.length, variant.bytes.length) : '—';

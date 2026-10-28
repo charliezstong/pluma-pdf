@@ -2,13 +2,13 @@
 
 Pluma PDF is imported as a development plugin in **Figma Desktop**. You do not need a paid plugin, a Community publication, or a compression account. Keep the entire folder in a fixed location: Figma reads the plugin from that folder.
 
-These instructions describe release **1.0.2**. The plugin interface remains in Spanish; the instructions below preserve its actual labels and explain them in English.
+These instructions describe release **1.0.3**. The plugin interface remains in Spanish; the instructions below preserve its actual labels and explain them in English.
 
 ## Before you start
 
 You need Figma Desktop and **Node.js 22.13.0 or later**, with npm. You can use a compatible LTS version from the [official Node.js installer](https://nodejs.org/en/download). The first installation downloads npm dependencies and requires internet access. After that, the engine processes PDFs on your computer.
 
-For the packaged installation, download the `PlumaPDF-1.0.2.zip` release asset. It includes the prebuilt `dist/code.js` and `dist/ui.html` bundles. Extract the entire archive and keep the folder somewhere stable, such as Documents. On Windows, use **Extract all** before opening `.cmd` files. Do not run the plugin from inside the ZIP. Do not copy `node_modules` from another computer: Sharp needs the binary for your operating system and processor.
+For the packaged installation, download the `PlumaPDF-1.0.3.zip` release asset. It includes the prebuilt `dist/code.js` and `dist/ui.html` bundles. Extract the entire archive and keep the folder somewhere stable, such as Documents. On Windows, use **Extract all** before opening `.cmd` files. Do not run the plugin from inside the ZIP. Do not copy `node_modules` from another computer: Sharp needs the binary for your operating system and processor.
 
 A source checkout or GitHub's automatic **Source code** download does not include `dist/`, which is generated output ignored by Git. You can use the same installation steps: the installer downloads dependencies and builds the bundles from source. Finish installation before importing `manifest.json` into Figma.
 
@@ -108,7 +108,7 @@ npm run check
 node scripts/package.mjs
 ```
 
-The packager does not run another build: it distributes the bundles that were already checked. For version 1.0.2, it generates `release/PlumaPDF-1.0.2.zip`, its SHA-256, and an inventory containing each file's hash. It also accepts `node scripts/package.mjs --out /path/to/another/folder`.
+The packager does not run another build: it distributes the bundles that were already checked. For version 1.0.3, it generates `release/PlumaPDF-1.0.3.zip`, its SHA-256, and an inventory containing each file's hash. It also accepts `node scripts/package.mjs --out /path/to/another/folder`.
 
 The installable release archive includes the manifest, prebuilt `dist/` bundles, engine, source, platform launchers, instructions, licenses, and locked dependency files. These bundles remain outside Git and its automatic source archives. The packager uses an explicit list of files and extensions; it excludes `node_modules`, `.git`, working directories, and PDFs. The ZIP works as a portable folder, although each computer must install Node.js and download its own dependencies.
 

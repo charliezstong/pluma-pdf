@@ -1,6 +1,6 @@
 # Pluma PDF architecture
 
-Pluma combines a Figma plugin with an optional Node service that processes bytes in memory. The "Inteligente" (Smart) mode starts from the native PDF and optimizes its images while preserving the original design. This document describes the layout for release **1.0.1**. The product interface remains in Spanish.
+Pluma combines a Figma plugin with an optional Node service that processes bytes in memory. The "Inteligente" (Smart) mode starts from the native PDF and optimizes its images while preserving the original design. This document describes the layout for release **1.0.3**. The product interface remains in Spanish.
 
 ## Components
 
@@ -53,7 +53,7 @@ PlumaPDF/
 └── tests/                        Synthetic PDFs, pixels, and canvas fixtures
 ```
 
-The tree shows `dist/` as generated output. It is ignored by Git and absent from a source checkout or GitHub's automatic source archives. The installable `PlumaPDF-1.0.1.zip` release asset includes prebuilt `dist/code.js` and `dist/ui.html`. The installer prepares these bundles from source, including when they are missing; installation must finish before importing the manifest into Figma.
+The tree shows `dist/` as generated output. It is ignored by Git and absent from a source checkout or GitHub's automatic source archives. The installable `PlumaPDF-1.0.3.zip` release asset includes prebuilt `dist/code.js` and `dist/ui.html`. The installer prepares these bundles from source, including when they are missing; installation must finish before importing the manifest into Figma.
 
 The `.command` launchers on macOS and `.cmd` launchers on Windows use the portable startup code. The same services can be started through npm scripts. The engine has no remote backend or persistent document storage.
 
@@ -149,7 +149,7 @@ Validation runs locally through `npm run check`: typecheck, build, and tests. Th
 
 The demo in `scripts/preview.mjs` serves the panel at `127.0.0.1:3848` with synthetic data. It helps review interaction and layout but does not prove Figma integration or the quality of a real document.
 
-`scripts/local.mjs` checks the environment, installs from the lockfile when needed, prepares the bundles, and verifies service identity before reusing an occupied port. Its `ensureBuild` helper generates missing bundles; the install command explicitly rebuilds them. The name, engine, and version returned by `/health` must match the package. For release 1.0.1, keep the package, lockfile, engine identity, and archive version synchronized.
+`scripts/local.mjs` checks the environment, installs from the lockfile when needed, prepares the bundles, and verifies service identity before reusing an occupied port. Its `ensureBuild` helper generates missing bundles; the install command explicitly rebuilds them. The name, engine, and version returned by `/health` must match the package. For release 1.0.3, keep the package, lockfile, engine identity, and archive version synchronized.
 
 `scripts/package.mjs` uses an explicit file allowlist, rejects symbolic links, and generates an installable ZIP with an inventory and SHA-256. It includes the checked, prebuilt `dist/` bundles even though Git ignores them. It does not include installed dependencies or user documents. Platform launchers share the portable implementation; that does not establish that the Windows workflow has been tested manually on a Windows computer.
 

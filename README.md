@@ -14,7 +14,7 @@ Free and open source, with no subscription. Pluma runs as a development plugin i
 ## Install
 
 1. Install **[Node.js 24 LTS](https://nodejs.org/)**, which includes npm.
-2. Download `PlumaPDF-1.0.2.zip` from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
+2. Download `PlumaPDF-1.0.3.zip` from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
 3. Run the installer for your operating system:
 
 | Platform | Install | Start the local engine |

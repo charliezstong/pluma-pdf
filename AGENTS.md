@@ -35,7 +35,7 @@ Context7 is not required for mechanical refactoring, scripts written from scratc
 
 ## Interface and protocol
 
-The accepted interface is vertical, **460 × 800**. Use a white or very light gray canvas with blue and graphite widget cards. Preserve the actual PDF colors in the comparison. Check the actual plugin width, scrolling, long text, and the complete list; a screenshot of the wide demo does not replace that check. Prevent the minimum content size of grids or flex items from expanding the panel horizontally.
+The accepted interface is vertical, **460 × 800**. Use a restrained white or very light gray canvas, subtle controls, blue primary actions, and one compact graphite summary after analysis. Avoid oversized colored cards and empty metric placeholders. Preserve the actual PDF colors in the comparison. Check the actual plugin width, scrolling, long text, and the complete list; a screenshot of the wide demo does not replace that check. Prevent the minimum content size of grids or flex items from expanding the panel horizontally.
 
 Preserve the `jobId` protocol, sequential page delivery, and ACKs. A stale response, settings change, or cancellation must not publish an outdated result. Respect the cache limit and release blob URLs, canvases, and PDF.js tasks.
 

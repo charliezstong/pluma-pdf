@@ -39,6 +39,10 @@ Primary request: create a beautifully art-directed premium software cover. Near-
 Constraints: match the input icon closely; only the three specified text strings; no watermark, no reference branding, no UI mockup, no extra symbols, no badges, no buttons, no decorative charts. Wide landscape 2:1 composition.
 ```
 
+## Plugin interface
+
+Keep the panel vertical at 460 × 800. Use a pale neutral canvas, compact controls, and vivid cobalt blue, matching the icon, for the primary action and active choices. Show measured page sizes in one graphite strip after reading the original PDF. Keep empty metrics hidden and let the document preview use the available space. Preserve the actual PDF colors.
+
 ## Usage
 
 Keep the icon square and preserve its alpha channel. Use a dark navy or neutral background when possible, with enough space to show its luminous edges. Keep the cover's proportions and readable margins. Use the monochrome SVG only where a simplified mark is appropriate.
