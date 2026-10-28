@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/brand/figma-cover.webp" alt="Pluma PDF — Lighter PDFs. Native detail." width="100%"></p>
+<p align="center"><img src="assets/brand/cover.webp" alt="Pluma PDF — Lighter PDFs. Native detail." width="100%"></p>
 
 <p align="center">
   <a href="https://github.com/charliezstong/pluma-pdf/releases/latest">Download</a> ·

@@ -1,23 +1,21 @@
 # Pluma PDF brand
 
-The primary icon is a sculpted white feather inside a luminous cobalt glass tile. The Community and repository cover uses a calm radial halo, from deep navy through cobalt and cyan to pale ice blue, with flat white typography. The earlier navy icon-and-type cover remains available as a legacy asset.
+The primary icon is a sculpted white feather inside a luminous cobalt glass tile. Covers use that icon as the hero on a deep midnight-navy background, with large white sans-serif type and an icy-blue tagline. The repository cover is panoramic, 3104 × 900 pixels, matching the dimensions requested from the Turbit reference. The reference supplies dimensions only; its artwork is not used.
 
 ## Files
 
 - `assets/brand/icon.png`: full-resolution source icon with transparent exterior.
-- `assets/brand/icon-128.png`, `icon-256.png`, `icon-512.png`: delivery sizes exported from that source.
-- `assets/brand/mark.svg`: simplified monochrome feather for contexts that require a small vector mark. It does not reproduce the glass rendering.
-- `assets/brand/figma-cover.png`: 1920 × 1080 PNG for the Figma Community cover.
-- `assets/brand/figma-cover.webp`: smaller web export used by the README.
-- `assets/brand/cover.png`: earlier navy repository cover, preserved as a legacy asset.
-- `assets/brand/cover.webp`: smaller web export of the earlier navy cover.
-- `assets/brand/preview.png`: actual plugin screenshot using its built-in synthetic document.
+- `assets/brand/icon-128.png`, `icon-256.png`, `icon-512.png`: delivery sizes.
+- `assets/brand/mark.svg`: simplified monochrome feather; it does not reproduce the glass rendering.
+- `assets/brand/cover.png` and `cover.webp`: 3104 × 900 repository cover; the README uses WebP.
+- `assets/brand/figma-cover.png` and `figma-cover.webp`: 1920 × 1080 Community artwork, preserving the original navy icon-and-type direction.
+- `assets/brand/preview.png`: English plugin screenshot using the built-in synthetic document.
 
-The plugin header and settings sheet embed the 128 px icon locally during the build. The startup screen uses the 256 px asset at 96 CSS pixels for a sharp centered logo, with a small animated loading indicator. Startup waits for the initial pages and language preference, with bounded fallbacks and reduced-motion support; it does not wait for the optional engine. No remote brand images are requested. Run `node scripts/brand.mjs` to recreate the delivery sizes after intentionally replacing the source artwork.
+The plugin embeds its brand images locally. The startup screen uses the 256 px icon at 96 CSS pixels, with a small animated loading indicator. Startup waits for initial pages and language preferences with bounded fallbacks; it does not wait for the optional engine. Header and bottom sheets use the same actual icon.
 
 ## Production
 
-The icon was generated using the built-in image generation tool, guided by the user's reference for blue, depth and frosted glass. The feather is original to Pluma PDF; the reference's flower, lightning bolt and attribution are not part of the result. The current cover was generated separately from a blue radial-gradient reference. Delivery exports resize the generated artwork; these are raster assets, not vector reconstructions. No client design imagery is included.
+The icon and panoramic cover were made with the built-in image generation tool, using the original Pluma icon and cover as identity references. The panoramic delivery uses a centered proportional crop and resize to exactly 3104 × 900; no stretching. Community artwork proportionally fits the original navy cover into a 1920 × 1080 navy canvas. These are raster assets. No client document imagery is included. Community assets are prepared for upload; this repository does not publish the plugin to Figma Community.
 
 ### Final icon prompt
 
@@ -31,14 +29,13 @@ Palette: saturated cobalt and ultramarine blue, icy azure and white highlights. 
 Constraints: transparent background outside the app tile, no surrounding poster, no text, no letters, no watermark, no reference branding. Do not copy the flower or lightning bolt from the reference. No flat generic vector look, no noisy details, no black exterior background.
 ```
 
-### Earlier navy cover prompt
+### Panoramic cover prompt
 
 ```text
-Use case: ads-marketing.
-Asset type: final GitHub repository cover for Pluma PDF, wide landscape 2:1 banner.
-Input image: the final Pluma PDF app icon. Preserve the same recognizable white feather, blue glass tile, depth and materials. This icon is the brand asset to feature.
-Primary request: create a beautifully art-directed premium software cover. Near-black midnight navy background, generous negative space, the supplied luminous cobalt blue frosted-glass feather app icon on the LEFT, rendered as a dimensional product with soft restrained blue light beneath it. The icon occupies roughly the left third, never cropped. On the RIGHT, large clear white modern sans-serif typography reads exactly "Pluma PDF". Directly below in smaller muted ice-blue typography, exactly "Lighter PDFs. Native detail." At the bottom of that same text column, a very small, carefully spaced line reads exactly "LOCAL · FREE · OPEN SOURCE". The composition is confident, quiet, sophisticated, with the icon providing the saturated blue energy. Keep all text well inside the margins and sharply legible.
-Constraints: match the input icon closely; only the three specified text strings; no watermark, no reference branding, no UI mockup, no extra symbols, no badges, no buttons, no decorative charts. Wide landscape 2:1 composition.
+Use case: compositing / ads-marketing.
+Edit target: image 1, the original Pluma PDF cover. Supporting identity reference: image 2, the actual Pluma app icon.
+Create a refined panoramic GitHub repository cover, EXACT CANVAS 3104 x 900 pixels (3.4489:1). Recover the strong original icon-based composition. Keep the original recognizable blue glass rounded-square icon with its icy-white feather, large on the LEFT, about 690px tall, fully within canvas with comfortable top/bottom breathing room. Keep its beautiful luminous cobalt and cyan rim, layered blue glass, white feather silhouette. A deep midnight-navy background (#030A21), subtle blue light behind and underneath icon, elegant restrained studio glow flowing across the very wide background. No tiny orb. No white poster background.
+RIGHT of icon: dominant large straight white sans-serif title, exquisitely typeset like the original, text verbatim "Pluma PDF". Under it, clearly readable light icy-blue sans-serif tagline verbatim "Lighter PDFs. Native detail." Small discreet spaced uppercase line below verbatim "LOCAL · FREE · OPEN SOURCE". Exact original wording. Flat crisp typography, professional kerning, no decorative serif, no bevel or extruded text, no blurry letters. Hierarchy: icon and large title dominate, tagline supports. Fill wide canvas intentionally, don't shrink everything to center. Icon remains hero, not a UI mockup. Keep title and icon fully visible with ~140px horizontal safe margins. No badges, extra icons, panels, screenshots, invented objects, extra slogans, watermarks. Preserve Pluma identity and original visual power; improve balance and adapt layout to requested ultra-wide ratio. Opaque background.
 ```
 
 ## Plugin interface
@@ -53,28 +50,6 @@ Keep the icon square and preserve its alpha channel. Use a dark navy or neutral 
 
 Interactive accents share `--blue` (`#174191`), with `#2052AB` hover and `#123371` pressed states. This remains recognizably blue while feeling deeper than bright cobalt. Primary buttons are rounded and 46 px tall with 13 px vertical padding. Secondary selections use neutral gray fills (`#F1F2F4`) and quiet gray borders (`#C7C9D2`), with dark blue text; avoid bright blue selection cards. The metric strip stays white with neutral separators and an accented reduction value, while the loaded PDF canvas is exactly `#1E1E1E`. All dialogs use a full-width bottom sheet with the Pluma icon centered above the title, a fade/translate entrance and a subtle exit. Respect reduced-motion preferences. These tokens affect interface chrome only, never the rendered PDF.
 
-## Community cover
+## Empty preview motion
 
-The cover uses one blue circular gradient on a white field, with generous margins and two flat white text lines in the dark center: “Pluma PDF” and “Lighter PDFs. Native detail.” Keep it circular; do not stretch it into an ellipse or add a rendered object, embossed type, badges or performance claims.
-
-One built-in image_gen edit of the first blue-gradient direction produced the 1672 × 941 source. A uniform resize to 1440 × 810 followed by centered white padding prepared the 1920 × 1080 PNG, preserving the circle's proportions and creating ample white space. The original remains in the local production outputs. The WebP export is used in the README. No client content is present. These assets are prepared for upload; this repository does not publish the plugin on Figma Community.
-
-The empty document preview follows the same color direction using one local CSS radial gradient on a white base. It expands eightfold over eight seconds, then breathes gently over a 30-second cycle. The circular artwork extends beyond the preview and is clipped by its bounds. Its cyan edge fades to transparency without a white ring or a separate blue background layer. Motion starts after the startup screen, stops when hidden and is disabled for reduced-motion preferences. Loaded PDF previews retain their neutral `#1E1E1E` background. Public interface screenshots use English and synthetic content. All dialogs share the logo and animated bottom-sheet presentation.
-
-### Cover prompt
-
-```text
-Use case: precise-object-edit.
-Asset type: one targeted refinement of the supplied Pluma PDF blue-gradient cover into a very airy minimalist editorial cover, landscape 16:9, intended 1920 x 1080 pixels.
-Input image roles: Image 1 is the existing blue-gradient-v3 cover to edit. Image 2 is the authoritative guide for the circular radial color progression and calm centered feeling only. Do not copy its word or brackets.
-Primary correction: the old gradient is MUCH TOO LARGE and oval/full-bleed. Replace it with ONE SMALL TRUE CIRCLE in the exact center of a very wide, clean WHITE canvas. Most of the cover must be blank white. The circular gradient must be isotropic: its width and height in actual pixels are equal. Do not stretch a circle into an ellipse to fit a landscape frame.
-Geometry: on the intended 1920 x 1080 canvas, center the orb at x=960, y=540. Its entire soft halo diameter should be approximately 560–620 pixels, ideally 600 pixels, INCLUDING the pale outer fade. That is only about 31 percent of the canvas width and 56 percent of its height. Leave around 650 pixels or more of clean white margin to both left and right, and at least 200 pixels of white above and below. Keep the whole halo comfortably away from every edge. Preserve a perfectly round appearance, not a pill, horizontal oval, vertical oval, full-screen wash or cropped halo.
-Background: true clean white #FFFFFF, especially across the huge outer margins and all four corners. No pale blue wash across the full canvas. Only the small central circle contains color. Its pale outer fade dissolves invisibly into white without any hard border.
-Radial gradient palette, center outward: dark center #171839; inner navy #15275a; deep blue #144ea9; blue #1c6ccc; cobalt #3195e5; cyan #55bcf5; light cyan #88d8fc; pale blue #bbe9fd and #dcf2fe; then seamless pure white. Smooth soft transitions like the second reference, no distinct concentric outlines and no banding. The central dark navy area must be large enough to hold both text lines with excellent contrast. Very subtle fine grain is allowed only if nearly invisible; no coarse noise or simulated material.
-Text (verbatim, exactly two lines):
-"Pluma PDF"
-"Lighter PDFs. Native detail."
-Typography: keep both lines centered INSIDE the small orb, as a compact group around its center. Use a refined clean flat white contemporary sans serif. Main title tasteful medium weight, about 42–46 pixels tall at 1920 width, much smaller than the v3 title. Tagline plain regular weight, about 17–19 pixels, with comfortable line spacing. The full wording of both lines must fit inside the dark core, without spilling onto bright cyan or white. The tagline must not approach the edge of the circle. Exact spelling, capitalization and punctuation. Crisp white flat ink only: no extrusion, bevel, outline, chrome, gradient, emboss, glow, shadow, 3D or ornamental letterforms.
-Overall feeling: a quiet white editorial page with a small blue orb, lots and lots of whitespace, deliberate proportion, calm human typography and no extraneous artwork. The restrained scale is essential.
-Constraints: one circle, two text lines, otherwise blank white. No paper sculpture, feather, icon, tile, mockup, rendered object, diagrams, orbital lines, UI, badge, prices, metrics, extra words, watermark or reference branding. Do not enlarge the orb to fill the frame. Deliver one polished 16:9 cover.
-```
+The empty document preview uses one local CSS radial gradient on a white base. It expands eightfold over eight seconds and then breathes gently over a 30-second cycle. The circle extends beyond the preview and is clipped by its bounds. Its cyan edge fades to transparency without a white ring or a separate blue background layer. Motion starts after startup, stops when hidden and is disabled for reduced motion. Loaded documents use the neutral `#1E1E1E` canvas. The empty-state gradient is not the repository cover.
