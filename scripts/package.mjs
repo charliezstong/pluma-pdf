@@ -7,15 +7,13 @@ import { MIN_NODE, supportsNode } from './local.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = [
-  'manifest.json', 'package.json', 'package-lock.json', 'build.mjs', 'preview.mjs', 'tsconfig.json',
+  'manifest.json', 'package.json', 'package-lock.json', 'tsconfig.json',
   'README.md', 'AGENTS.md', 'THIRD_PARTY_NOTICES.md', 'LICENSE',
   'docs/INSTALL.md', 'docs/ARCHITECTURE.md', 'docs/CONTRIBUTING.md', 'docs/BRAND.md',
-  'Instalar Pluma PDF.command', 'Iniciar motor.command', 'Ver interfaz.command',
-  'Instalar Pluma PDF.cmd', 'Iniciar motor.cmd', 'Ver interfaz.cmd',
 ];
 const DIRECTORIES = {
   dist: ['.js', '.html'], engine: ['.mjs'], src: ['.ts', '.html', '.css'],
-  scripts: ['.mjs'], tests: ['.mjs'], licenses: ['.md', '.txt'],
+  scripts: ['.mjs', '.command', '.cmd'], tests: ['.mjs'], licenses: ['.md', '.txt'],
   assets: ['.png', '.jpg', '.jpeg', '.webp', '.svg'],
 };
 const OPTIONAL = new Set(['LICENSE', 'assets', 'docs/ARCHITECTURE.md', 'docs/CONTRIBUTING.md']);
@@ -42,21 +40,21 @@ export async function collectReleaseFiles(root = ROOT) {
   let totalBytes = 0;
   async function add(path) {
     const info = await lstat(join(root, path));
-    if (!info.isFile() || info.isSymbolicLink()) throw new Error(`El paquete solo acepta archivos normales: ${path}`);
+    if (!info.isFile() || info.isSymbolicLink()) throw new Error(`Only regular files can be packaged: ${path}`);
     const bytes = await readFile(join(root, path));
     totalBytes += bytes.length;
-    if (totalBytes > MAX_ARCHIVE_BYTES) throw new Error('El código del paquete supera 128 MiB. Revisa sus archivos antes de distribuirlo.');
+    if (totalBytes > MAX_ARCHIVE_BYTES) throw new Error('Package source files exceed 128 MiB. Review the files before distributing the package.');
     files.push({ path: path.split('\\').join('/'), bytes, mode: path.endsWith('.command') ? 0o100755 : 0o100644 });
   }
   async function visit(directory, extensions) {
     const info = await lstat(join(root, directory));
-    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error(`La carpeta no puede ser un enlace: ${directory}`);
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new Error(`The directory cannot be a symlink: ${directory}`);
     const children = await readdir(join(root, directory), { withFileTypes: true });
     children.sort((a, b) => a.name.localeCompare(b.name, 'en'));
     for (const entry of children) {
       if (FORBIDDEN.has(entry.name) || entry.name.startsWith('.')) continue;
       const path = join(directory, entry.name);
-      if (entry.isSymbolicLink()) throw new Error(`No se distribuyen enlaces simbólicos: ${path}`);
+      if (entry.isSymbolicLink()) throw new Error(`Symlinks cannot be distributed: ${path}`);
       if (entry.isDirectory()) await visit(path, extensions);
       else if (entry.isFile() && extensions.includes(extname(entry.name).toLowerCase())) await add(path);
     }
@@ -70,21 +68,26 @@ export async function collectReleaseFiles(root = ROOT) {
     catch (error) { if (!OPTIONAL.has(directory) || error.code !== 'ENOENT') throw error; }
   }
   const paths = new Set(files.map(file => file.path));
-  for (const required of ['dist/code.js', 'dist/ui.html', 'engine/server.mjs', 'docs/INSTALL.md', 'scripts/local.mjs']) {
-    if (!paths.has(required)) throw new Error(`Falta ${required}. Ejecuta las comprobaciones y el build antes de empaquetar.`);
+  for (const required of [
+    'dist/code.js', 'dist/ui.html', 'engine/server.mjs', 'docs/INSTALL.md',
+    'scripts/local.mjs', 'scripts/build.mjs', 'scripts/preview.mjs',
+    'scripts/macos/install.command', 'scripts/macos/start-engine.command', 'scripts/macos/preview.command',
+    'scripts/windows/install.cmd', 'scripts/windows/start-engine.cmd', 'scripts/windows/preview.cmd',
+  ]) {
+    if (!paths.has(required)) throw new Error(`Missing ${required}. Run the checks and build before packaging.`);
   }
   return files.sort((a, b) => a.path.localeCompare(b.path, 'en'));
 }
 
 /** Small, reproducible ZIP with UTF-8 names and executable macOS launchers. */
 export function createZIP(files, prefix) {
-  if (!/^[A-Za-z0-9._-]+\/$/.test(prefix)) throw new Error('Prefijo ZIP no válido.');
-  if (files.length > 65535) throw new Error('Demasiados archivos para el paquete.');
+  if (!/^[A-Za-z0-9._-]+\/$/.test(prefix)) throw new Error('Invalid ZIP prefix.');
+  if (files.length > 65535) throw new Error('The package contains too many files.');
   const parts = [];
   const directory = [];
   let offset = 0;
   for (const file of files) {
-    if (file.path.includes('..') || file.path.startsWith('/') || file.path.includes('\\')) throw new Error('Ruta ZIP no válida.');
+    if (file.path.includes('..') || file.path.startsWith('/') || file.path.includes('\\')) throw new Error('Invalid ZIP path.');
     const name = Buffer.from(prefix + file.path, 'utf8');
     const compressed = deflateRawSync(file.bytes, { level: 9 });
     const crc = crc32(file.bytes);
@@ -126,11 +129,11 @@ export function createZIP(files, prefix) {
 }
 
 export async function packageRelease({ root = ROOT, outDir = join(root, 'release') } = {}) {
-  if (!supportsNode()) throw new Error(`Necesitas Node.js ${MIN_NODE} o posterior.`);
+  if (!supportsNode()) throw new Error(`Node.js ${MIN_NODE} or later is required.`);
   const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
-  if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(pkg.version)) throw new Error('La versión del paquete no es válida.');
+  if (!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(pkg.version)) throw new Error('The package version is invalid.');
   const lock = JSON.parse(await readFile(join(root, 'package-lock.json'), 'utf8'));
-  if (lock.packages?.['']?.version !== pkg.version) throw new Error('package.json y package-lock.json tienen versiones diferentes.');
+  if (lock.packages?.['']?.version !== pkg.version) throw new Error('package.json and package-lock.json have different versions.');
   const files = await collectReleaseFiles(root);
   const inventory = {
     name: 'Pluma PDF', version: pkg.version, minimumNode: MIN_NODE,
@@ -152,9 +155,9 @@ export async function packageRelease({ root = ROOT, outDir = join(root, 'release
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const args = process.argv.slice(2);
   const valid = args.length === 0 || (args.length === 2 && args[0] === '--out');
-  if (!valid) { console.error('Usa: node scripts/package.mjs [--out carpeta]'); process.exitCode = 1; }
+  if (!valid) { console.error('Usage: node scripts/package.mjs [--out directory]'); process.exitCode = 1; }
   else packageRelease({ outDir: args.length ? resolve(args[1]) : undefined }).then(result => {
-    console.log(`Paquete listo: ${result.path}\n${result.files} archivos · ${result.bytes.toLocaleString('es')} bytes\nSHA-256: ${result.sha256}`);
-    console.log('No incluye dependencias instaladas ni PDFs. Ejecuta Instalar Pluma PDF en el equipo de destino.');
+    console.log(`Package ready: ${result.path}\n${result.files} files · ${result.bytes.toLocaleString('en')} bytes\nSHA-256: ${result.sha256}`);
+    console.log('Installed dependencies and PDFs are excluded. Run the installer on the destination computer.');
   }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }

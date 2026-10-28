@@ -1,68 +1,78 @@
-# Instalar Pluma PDF
+# Install Pluma PDF
 
-Pluma PDF se importa como plugin de desarrollo en **Figma Desktop**. No hace falta pagar otro plugin, publicar en Community ni tener una cuenta de compresión. Conserva toda la carpeta en una ubicación fija: Figma lee el plugin desde ella.
+Pluma PDF is imported as a development plugin in **Figma Desktop**. You do not need a paid plugin, a Community publication, or a compression account. Keep the entire folder in a fixed location: Figma reads the plugin from that folder.
 
-## Antes de empezar
+These instructions describe release **1.0.1**. The plugin interface remains in Spanish; the instructions below preserve its actual labels and explain them in English.
 
-Necesitas Figma Desktop y **Node.js 22.13.0 o posterior**, con npm. Puedes usar una versión LTS compatible del [instalador oficial de Node.js](https://nodejs.org/en/download). La primera instalación descarga dependencias de npm y necesita internet. Después, el motor procesa tus PDFs en tu equipo.
+## Before you start
 
-Descarga el ZIP de la versión de Pluma PDF, extráelo completo y guarda la carpeta, por ejemplo, en Documentos. En Windows, usa **Extraer todo** antes de abrir los archivos `.cmd`. No ejecutes el plugin desde dentro del ZIP. No copies `node_modules` desde otro ordenador: Sharp necesita el binario de tu sistema y procesador.
+You need Figma Desktop and **Node.js 22.13.0 or later**, with npm. You can use a compatible LTS version from the [official Node.js installer](https://nodejs.org/en/download). The first installation downloads npm dependencies and requires internet access. After that, the engine processes PDFs on your computer.
+
+For the packaged installation, download the `PlumaPDF-1.0.1.zip` release asset. It includes the prebuilt `dist/code.js` and `dist/ui.html` bundles. Extract the entire archive and keep the folder somewhere stable, such as Documents. On Windows, use **Extract all** before opening `.cmd` files. Do not run the plugin from inside the ZIP. Do not copy `node_modules` from another computer: Sharp needs the binary for your operating system and processor.
+
+A source checkout or GitHub's automatic **Source code** download does not include `dist/`, which is generated output ignored by Git. You can use the same installation steps: the installer downloads dependencies and builds the bundles from source. Finish installation before importing `manifest.json` into Figma.
+
+The manifest remains at the extracted folder's root. Platform launchers are under `scripts/macos/` and `scripts/windows/`.
 
 ## macOS
 
-1. Abre **Instalar Pluma PDF.command**. Instala las versiones del archivo `package-lock.json` con `npm ci` y prepara el plugin. Espera el mensaje de instalación completa.
-2. Abre **Iniciar motor.command**. Deja esa ventana abierta mientras usas el modo Inteligente.
-3. En Figma Desktop abre un archivo de diseño. En el menú **Plugins → Development → Import plugin from manifest…**, selecciona el `manifest.json` de esta carpeta.
-4. Abre **Plugins → Development → Pluma PDF · Local**. Selecciona frames o cambia a Página y pulsa **Analizar y previsualizar**.
+1. Open `scripts/macos/install.command`. It installs the versions in `package-lock.json` with `npm ci` and prepares the plugin. Wait for the installation-complete message.
+2. Open `scripts/macos/start-engine.command`. Keep that window open while using "Inteligente" (Smart).
+3. Open a design file in Figma Desktop. Choose **Plugins → Development → Import plugin from manifest…** and select `manifest.json` at the extracted folder's root.
+4. Open **Plugins → Development → Pluma PDF · Local**. Select frames or choose "Página" (Page), then click "Analizar y previsualizar" (Analyze and preview).
 
-Si macOS no permite abrir un `.command`, abre Terminal, escribe `zsh ` con un espacio, arrastra el archivo a Terminal y pulsa Intro. Si una descarga requiere autorización, revisa su origen y usa las opciones de apertura de macOS; no es necesario desactivar las protecciones del sistema.
+If macOS does not open a `.command` file, open Terminal, type `zsh ` with a trailing space, drag the file into Terminal, and press Return. If a download requires authorization, check its origin and use macOS opening options; you do not need to disable system protections.
 
 ## Windows
 
-1. Abre **Instalar Pluma PDF.cmd** con doble clic. Espera el mensaje de instalación completa.
-2. Abre **Iniciar motor.cmd**. Deja esa ventana abierta mientras usas Inteligente.
-3. En Figma Desktop, **Plugins → Development → Import plugin from manifest…**, elige el `manifest.json` de la carpeta extraída.
-4. Abre **Plugins → Development → Pluma PDF · Local** y analiza tus frames.
+1. Double-click `scripts/windows/install.cmd`. Wait for the installation-complete message.
+2. Open `scripts/windows/start-engine.cmd`. Keep that window open while using "Inteligente" (Smart).
+3. In Figma Desktop, choose **Plugins → Development → Import plugin from manifest…** and select `manifest.json` at the extracted folder's root.
+4. Open **Plugins → Development → Pluma PDF · Local** and analyze your frames with "Analizar y previsualizar" (Analyze and preview).
 
-Si acabas de instalar Node.js y el lanzador todavía no lo encuentra, cierra esa ventana y abre otra. No hace falta ejecutar como administrador. Los lanzadores Windows comparten el mismo código de instalación y comprobación que macOS; no se han probado todavía en un equipo Windows real. Windows ARM64 depende además del soporte experimental de Sharp para esa arquitectura.
+If you just installed Node.js and the launcher cannot find it, close that window and open a new one. Administrator privileges are not required. The Windows launchers share the same installation and checking code as macOS; the workflow has not yet been tested manually on a real Windows computer. Windows ARM64 also depends on Sharp's experimental support for that architecture.
 
-La importación desde el manifiesto sigue el [procedimiento oficial de Figma](https://help.figma.com/hc/en-us/articles/360042786733-Create-a-classic-plugin-for-development). El nombre exacto del menú puede variar según el idioma de Figma.
+Importing from a manifest follows the [official Figma procedure](https://help.figma.com/hc/en-us/articles/360042786733-Create-a-classic-plugin-for-development). The exact menu wording may vary with Figma's language.
 
-## En el uso diario
+## Daily use
 
-Abre **Iniciar motor** y después el plugin en Figma. Si el motor ya está abierto y su versión coincide, el lanzador lo reutiliza y muestra un aviso. La segunda ventana puede cerrarse; conserva abierta la ventana original del motor. Para detenerlo, pulsa **Ctrl+C** en su ventana.
+Open `scripts/macos/start-engine.command` or `scripts/windows/start-engine.cmd`, then open the plugin in Figma. If the engine is already running and its version matches, the launcher reuses it and displays a notice. You can close the second window; keep the original engine window open. To stop the engine, press **Ctrl+C** in its window.
 
-El motor usa `http://127.0.0.1:3847/health`. El plugin conecta a `http://localhost:3847`. Original y Compacto pueden exportar sin este motor; Inteligente y la deduplicación local lo necesitan. **Ver interfaz.command / Ver interfaz.cmd** abre una demo con páginas sintéticas en el navegador; para trabajar con tu diseño, abre el plugin dentro de Figma.
+The engine exposes `http://127.0.0.1:3847/health`. The plugin connects to `http://localhost:3847`. "Original" and "Compacto" (Compact) can export without this engine; "Inteligente" and local deduplication require it.
 
-Si mueves o renombras la carpeta, vuelve a importar su `manifest.json` desde la nueva ubicación. Para actualizar, cierra el motor y el plugin, extrae la nueva versión, ejecuta su instalador y vuelve a importar su manifiesto.
+`scripts/macos/preview.command` or `scripts/windows/preview.cmd` opens a browser demo with synthetic pages. To work with your own design, open the plugin inside Figma. The accepted plugin panel is **460 × 800**; a wider browser demo is not a substitute for checking the actual panel.
 
-## Si algo falla
+If you move or rename the folder, reimport `manifest.json` from its new location. To update, close the engine and plugin, extract the new release, run its installer, and reimport its manifest.
 
-| Mensaje o síntoma | Qué hacer |
+## Troubleshooting
+
+| Message or symptom | What to do |
 | --- | --- |
-| Node no aparece o es anterior a 22.13 | Instala una versión compatible desde Node.js y vuelve a abrir el lanzador. |
-| Falla la descarga de dependencias | Comprueba internet o el proxy de tu red y vuelve a abrir **Instalar Pluma PDF**. No modifica el archivo de versiones fijadas. |
-| Sharp no carga | Ejecuta el instalador en ese equipo. No reutilices `node_modules` de otro sistema o arquitectura. Se incluyen las dependencias opcionales necesarias para sus binarios. |
-| Puerto 3847 ocupado | Si no es un motor Pluma compatible, el lanzador lo indica. Cierra la aplicación que ocupa ese puerto y reintenta; Pluma no detiene procesos ajenos. |
-| Figma no carga el plugin | Comprueba que elegiste `manifest.json`, que la carpeta sigue en su sitio y que existen `dist/code.js` y `dist/ui.html`. Ejecuta el instalador si faltan. |
-| El plugin indica motor desconectado | Mantén abierto **Iniciar motor**. Comprueba que `/health` responde y que Figma Desktop tiene permiso para acceder al servidor local. |
+| Node is missing or older than 22.13 | Install a compatible version from Node.js and reopen the launcher. |
+| Dependency download fails | Check internet access or your network proxy, then rerun `scripts/macos/install.command` or `scripts/windows/install.cmd`. The installer does not change the lockfile. |
+| Sharp fails to load | Run the installer on that computer. Do not reuse `node_modules` from another system or architecture. Installation includes the optional dependencies needed for its binaries. |
+| Port 3847 is occupied | The launcher reports when the service is not a compatible Pluma engine. Close the application using that port and retry; Pluma does not stop unrelated processes. |
+| Figma cannot load the plugin | Check that you selected `manifest.json`, that the folder is still in place, and that `dist/code.js` and `dist/ui.html` exist. Run the installer if they are missing. |
+| The plugin reports that the engine is disconnected | Keep the engine launcher window open. Check that `/health` responds and that Figma Desktop can access the local server. |
 
-Desde una terminal en la carpeta puedes comprobar el estado sin iniciar ni detener nada:
+From a terminal in the repository folder, check the environment without starting or stopping services:
 
 ```sh
 node scripts/local.mjs check
 ```
 
-Los pasos equivalentes al doble clic son los mismos en macOS y Windows:
+The terminal equivalents of the installer and engine launchers are the same on macOS and Windows:
 
 ```sh
 node scripts/local.mjs install
 node scripts/local.mjs engine
 ```
 
-## Crear un ZIP para compartir
+The build and demo entry points are `scripts/build.mjs` and `scripts/preview.mjs`. Their npm commands remain `npm run build` and `npm run preview`.
 
-Para quien mantiene el proyecto, desde la carpeta del repositorio:
+## Create a ZIP to share
+
+For project maintainers, run the following locally from the repository folder. Validation uses `npm run check`; the repository does not include a GitHub Actions workflow.
 
 ```sh
 npm ci
@@ -70,8 +80,8 @@ npm run check
 node scripts/package.mjs
 ```
 
-El empaquetador no ejecuta un nuevo build: distribuye los bundles ya comprobados. Genera `release/PlumaPDF-<versión>.zip`, su SHA-256 y un inventario con el hash de cada archivo. También admite `node scripts/package.mjs --out /ruta/a/otra/carpeta`.
+The packager does not run another build: it distributes the bundles that were already checked. For version 1.0.1, it generates `release/PlumaPDF-1.0.1.zip`, its SHA-256, and an inventory containing each file's hash. It also accepts `node scripts/package.mjs --out /path/to/another/folder`.
 
-Incluye manifiesto, bundles, motor, fuentes, instaladores, instrucciones, licencias y archivos de dependencias fijadas. Usa una lista explícita de archivos y extensiones; excluye `node_modules`, `.git`, carpetas de trabajo y PDFs. El ZIP funciona como carpeta portable, aunque cada equipo debe instalar Node.js y descargar sus propias dependencias.
+The installable release archive includes the manifest, prebuilt `dist/` bundles, engine, source, platform launchers, instructions, licenses, and locked dependency files. These bundles remain outside Git and its automatic source archives. The packager uses an explicit list of files and extensions; it excludes `node_modules`, `.git`, working directories, and PDFs. The ZIP works as a portable folder, although each computer must install Node.js and download its own dependencies.
 
-La instalación reproducible usa [`npm ci`](https://docs.npmjs.com/cli/v10/commands/npm-ci), que exige coherencia entre `package.json` y el lockfile y no los actualiza. Los binarios se eligen para cada plataforma siguiendo la [documentación de Sharp](https://sharp.pixelplumbing.com/install/).
+Reproducible installation uses [`npm ci`](https://docs.npmjs.com/cli/v10/commands/npm-ci), which requires `package.json` and the lockfile to agree and does not update them. Binaries are selected for each platform according to the [Sharp installation documentation](https://sharp.pixelplumbing.com/install/).

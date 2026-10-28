@@ -1,13 +1,17 @@
 {
-  "name": "Pluma PDF · Local",
+  "name": "Pluma PDF \u00b7 Local",
   "id": "pluma-pdf-local-dev",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",
-  "editorType": ["figma"],
+  "editorType": [
+    "figma"
+  ],
   "documentAccess": "dynamic-page",
   "networkAccess": {
-    "allowedDomains": ["http://localhost:3847"],
-    "reasoning": "Conexión opcional al motor Sharp en tu propio computador. Los archivos no se envían a servidores externos."
+    "allowedDomains": [
+      "http://localhost:3847"
+    ],
+    "reasoning": "Optional connection to the Sharp engine on your own computer. Files are not sent to external servers."
   }
 }

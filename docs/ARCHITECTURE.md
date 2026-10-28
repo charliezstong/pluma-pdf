@@ -1,129 +1,156 @@
-# Arquitectura de Pluma PDF
+# Pluma PDF architecture
 
-Pluma combina un plugin de Figma con un servicio Node opcional que procesa bytes en memoria. El diseño original no se utiliza como superficie de optimización: el punto de partida del modo Inteligente es su PDF nativo.
+Pluma combines a Figma plugin with an optional Node service that processes bytes in memory. The "Inteligente" (Smart) mode starts from the native PDF and optimizes its images while preserving the original design. This document describes the layout for release **1.0.1**. The product interface remains in Spanish.
 
-## Componentes
+## Components
+
+The repository root contains project metadata and the main documentation. Build tools, the local demo, and platform launchers live under `scripts/`.
 
 ```text
-manifest.json                 Entradas y acceso de red del plugin
-build.mjs                     Bundles del controlador y de la UI
-src/
-  plugin.ts                   Controlador en el sandbox de Figma
-  ui.ts / ui.html / ui.css     Panel vertical, caché y descarga
-  geometry.ts                 Presupuestos de rasterización
-  occlusion.ts                Diagnóstico conservador de capas
-  pdf-preview.ts              Render de los bytes PDF reales
-  visual-diff.ts              Comparación RGBA y mapa de diferencias
-engine/
-  server.mjs                  API HTTP en loopback
-  optimize.mjs                Imágenes raster independientes
-  pdf-optimize.mjs            Imágenes internas del PDF
-  pdf-placement.mjs           Presupuesto por colocación real
-  pdf-deduplicate.mjs         Recursos codificados equivalentes
-tests/                        PDFs, píxeles y canvas sintéticos
-docs/                         Documentación del software
-assets/brand/                 Marca e imágenes públicas del producto
-scripts/local.mjs             Instalación, diagnóstico y arranque portable
-scripts/package.mjs           ZIP de release e inventario de archivos
-.github/workflows/ci.yml       Verificación del repositorio en CI
-licenses/                     Licencias de dependencias distribuidas
-THIRD_PARTY_NOTICES.md         Avisos de terceros
-preview.mjs                   Demo local del panel
-dist/                         Salida generada; no es código fuente
+PlumaPDF/
+├── .gitignore                    Local and private file exclusions
+├── AGENTS.md                     Contributor and agent invariants
+├── README.md                     Product overview and quick start
+├── LICENSE                       Project license
+├── THIRD_PARTY_NOTICES.md         Third-party notices
+├── manifest.json                 Plugin entry points and network access
+├── package.json                  Commands and dependency requirements
+├── package-lock.json             Locked dependency versions
+├── tsconfig.json                 TypeScript configuration
+├── assets/brand/                 Public product branding and demo images
+├── dist/                         Generated locally; release ZIP only, ignored by Git
+│   ├── code.js                   Figma controller bundle
+│   └── ui.html                   Self-contained interface bundle
+├── docs/                         Software documentation
+├── engine/
+│   ├── server.mjs                Loopback HTTP API
+│   ├── optimize.mjs              Standalone raster images
+│   ├── pdf-optimize.mjs          Images inside PDFs
+│   ├── pdf-placement.mjs         Image budgets from actual placement
+│   └── pdf-deduplicate.mjs       Equivalent encoded resources
+├── licenses/                     Licenses for distributed dependencies
+├── scripts/
+│   ├── build.mjs                 Controller and interface bundles
+│   ├── brand.mjs                 Public product brand asset generation
+│   ├── preview.mjs               Local interface demo
+│   ├── local.mjs                 Portable installation, checks, and startup
+│   ├── package.mjs               Release ZIP and file inventory
+│   ├── macos/
+│   │   ├── install.command       Install dependencies and prepare the plugin
+│   │   ├── start-engine.command  Start the local engine
+│   │   └── preview.command       Open the synthetic demo
+│   └── windows/
+│       ├── install.cmd           Install dependencies and prepare the plugin
+│       ├── start-engine.cmd      Start the local engine
+│       └── preview.cmd           Open the synthetic demo
+├── src/
+│   ├── plugin.ts                 Controller in the Figma sandbox
+│   ├── ui.ts / ui.html / ui.css   Vertical panel, cache, and downloads
+│   ├── geometry.ts               Rasterization budgets
+│   ├── occlusion.ts              Conservative layer diagnostics
+│   ├── pdf-preview.ts            Rendering of actual PDF bytes
+│   └── visual-diff.ts            RGBA comparison and difference maps
+└── tests/                        Synthetic PDFs, pixels, and canvas fixtures
 ```
 
-Los lanzadores `.command` en macOS y `.cmd` en Windows utilizan el arranque portable. Los mismos servicios se pueden iniciar con los scripts de npm. No hay un backend remoto ni almacenamiento persistente de documentos en el motor.
+The tree shows `dist/` as generated output. It is ignored by Git and absent from a source checkout or GitHub's automatic source archives. The installable `PlumaPDF-1.0.1.zip` release asset includes prebuilt `dist/code.js` and `dist/ui.html`. The installer prepares these bundles from source, including when they are missing; installation must finish before importing the manifest into Figma.
+
+The `.command` launchers on macOS and `.cmd` launchers on Windows use the portable startup code. The same services can be started through npm scripts. The engine has no remote backend or persistent document storage.
 
 ```mermaid
 flowchart TD
-    F[Documento de Figma] -->|exportación nativa| C[Controlador del plugin]
-    C -->|página y jobId| U[UI y caché de originales]
-    U -->|Inteligente: PDF| O[Motor local]
-    O -->|PDF con imágenes optimizadas| U
-    U --> V[Vista previa y comparación]
-    U --> M[Unión de páginas con pdf-lib]
-    M -->|Inteligente| D[Deduplicación exacta local]
-    D --> B[Blob PDF para descargar]
-    M -->|Original o Compacto| B
+    F[Figma document] -->|native export| C[Plugin controller]
+    C -->|page and jobId| U[Interface and original cache]
+    U -->|Inteligente: PDF| O[Local engine]
+    O -->|PDF with optimized images| U
+    U --> V[Preview and comparison]
+    U --> M[Page merge with pdf-lib]
+    M -->|Inteligente| D[Exact local deduplication]
+    D --> B[Downloadable PDF blob]
+    M -->|Original or Compacto| B
 ```
 
-## Límites entre entornos
+## Runtime boundaries
 
-El controlador usa la API de Figma y entrega bytes mediante mensajes al iframe. La UI utiliza APIs del navegador y no ejecuta procesos Node. El motor recibe cuerpos binarios HTTP; no recibe rutas del disco ni identificadores que le permitan editar Figma.
+The controller uses the Figma API and sends bytes to the iframe through messages. The interface uses browser APIs and does not run Node processes. The engine receives binary HTTP bodies; it receives no disk paths or identifiers that would let it edit Figma.
 
-`src/plugin.ts` exporta directamente los nodos originales. El modo Original y el modo Inteligente solicitan PDF sRGB. Compacto solicita PNG sRGB y construye páginas rasterizadas en la UI: es una opción explícita, con un compromiso distinto respecto de texto y vectores.
+`src/plugin.ts` exports the original nodes directly. The "Original" and "Inteligente" modes request sRGB PDFs. "Compacto" (Compact) requests sRGB PNGs and builds rasterized pages in the interface. That is an explicit option with a different tradeoff for text and vectors.
 
-La única acción que puede cambiar la navegación del editor es Foco: selecciona una capa solicitada y la muestra en el viewport. Exportar y diagnosticar no cambian el contenido, la visibilidad ni la jerarquía del documento.
+The only action that can change editor navigation is "Foco" (Focus): it selects the requested layer and shows it in the viewport. Exporting and running diagnostics do not change document content, visibility, or hierarchy.
 
-## Exportación y estado
+## Export and state
 
-El alcance puede ser la selección o los elementos exportables de la página. El controlador expande secciones, evita duplicar ancestros y descendientes y ordena inicialmente por posición absoluta: arriba hacia abajo y después de izquierda a derecha. Los nombres y el orden de capas no determinan ese orden. La UI permite revisar la lista y elegir otros órdenes explícitos.
+The scope can be the selection or the page's exportable elements. The controller expands sections, avoids including both ancestors and descendants, and initially sorts by absolute position: top to bottom, then left to right. Names and layer order do not determine that order. The interface lets users review the list and explicitly choose other orders.
 
-Cada trabajo tiene `jobId`. El controlador entrega una página y espera su ACK antes de exportar la siguiente. La cancelación rechaza esperas pendientes; respuestas antiguas no pueden avanzar un trabajo nuevo. Un cambio de página o el cierre del plugin cancela el trabajo correspondiente.
+Each job has a `jobId`. The controller delivers one page and waits for its ACK before exporting the next. Cancellation rejects pending waits; stale responses cannot advance a new job. Changing pages or closing the plugin cancels the corresponding job.
 
-La UI conserva los originales y un número acotado de variantes por frame. El modo, la calidad y el límite de píxeles forman la clave de una variante; el orden y las páginas seleccionadas también forman parte de la validez del PDF final. Cambiar esos valores invalida una descarga obsoleta.
+The interface retains originals and a bounded number of variants per frame. Mode, quality, and pixel limit form a variant's cache key; order and selected pages also determine the validity of the final PDF. Changing those values invalidates an outdated download.
 
-La caché de UI tiene un límite de 450 MiB y hasta dos variantes por frame. El controlador admite hasta 200 páginas. Son límites operativos, no una garantía de que un documento de cualquier complejidad quepa en memoria.
+The interface cache is limited to 450 MiB and up to two variants per frame. The controller accepts up to 200 pages. These are operational limits, not a guarantee that a document of any complexity will fit in memory.
 
-## Optimización de PDF
+The accepted plugin panel is vertical, **460 × 800**. Check its actual width, scrolling, long labels, and complete page list. A wide browser demo does not replace validation at the plugin's real dimensions.
 
-`pdf-optimize.mjs` carga el PDF con pdf-lib y modifica únicamente imágenes compatibles. Mantiene sus referencias cuando es posible; la deduplicación puede hacer que dos referencias equivalentes compartan el mismo objeto. No reescribe el texto ni las instrucciones vectoriales de las páginas.
+## PDF optimization
 
-El recorrido admite muestras RGB/Gray de 8 bits con DCT o Flate simple y perfiles sRGB reconocidos. Los recursos con color o decodificación no compatibles permanecen intactos. Esto incluye casos ambiguos de `/Decode`, `ColorTransform`, predictores, `/Matte` y máscaras complejas.
+`engine/pdf-optimize.mjs` loads the PDF with pdf-lib and modifies only compatible images. It retains their references when possible; deduplication may make two equivalent references share one object. It does not rewrite page text or vector instructions.
 
-### Colocación
+The traversal supports 8-bit RGB/Gray samples with DCT or simple Flate encoding and recognized sRGB profiles. Resources with incompatible color or decoding remain intact. These include ambiguous `/Decode`, `ColorTransform`, predictors, `/Matte`, and complex masks.
 
-PDF.js inspecciona los operadores de todas las páginas y sus matrices para estimar cuántos píxeles necesita cada imagen según su tamaño visible. El presupuesto cubre ambos ejes y conserva la proporción de la fuente. Una imagen compartida debe satisfacer su mayor uso.
+### Placement
 
-Los grupos, repeticiones o patrones que no pueden resolverse de forma segura bloquean el límite específico de ese recurso. Si falta cobertura de páginas, se alcanza el timeout o queda un uso sin resolver, se conserva el límite global. La auditoría del motor tiene un máximo de 30 segundos y no necesita renders de página completa.
+PDF.js inspects every page's operators and matrices to estimate how many pixels each image needs for its displayed size. The budget covers both axes and preserves the source aspect ratio. A shared image must satisfy its largest use.
 
-La deduplicación también combina los presupuestos de sus alias. Si uno de sus usos es desconocido, el recurso compartido usa el límite global; un primer uso pequeño no puede degradar un uso posterior grande.
+Groups, repetitions, or patterns that cannot be resolved safely block the resource-specific limit. Missing page coverage, a timeout, or an unresolved use retains the global limit. The engine's placement audit has a 30-second limit and does not require full-page renders.
 
-### Color y alpha
+Deduplication also combines alias budgets. If any use is unknown, the shared resource uses the global limit; a small first use must not degrade a later, larger use.
 
-Sharp aplica el remuestreo con color y alpha juntos para evitar halos. El color se codifica como JPEG y la máscara como Flate sin pérdida después de redimensionarla. El motor conserva el perfil ICC del PDF y no aplica una autorrotación EXIF que altere la geometría del recurso.
+### Color and alpha
 
-Una máscara compartida recibe una nueva referencia para cada variante que lo necesite. Solo se retiran máscaras antiguas después de comprobar que ninguna estructura del PDF las referencia. Una máscara completamente blanca puede omitirse; una máscara parcialmente transparente no puede tratarse como opaca.
+Sharp resamples color and alpha together to avoid halos. Color is encoded as JPEG, and the resized mask is encoded as lossless Flate. The engine preserves the PDF's ICC profile and does not apply EXIF autorotation that would change resource geometry.
 
-Los flujos Flate tienen un tamaño de salida acotado. Si falta su cierre pero se obtienen exactamente todas las muestras esperadas, se puede recuperar ese caso concreto. Los datos incompletos o incompatibles permanecen sin optimizar.
+A shared mask receives a new reference for each variant that needs one. Old masks are removed only after checking that no PDF structure references them. An entirely white mask may be omitted; a partially transparent mask must not be treated as opaque.
 
-### Deduplicación final
+Flate streams have a bounded output size. If the stream terminator is missing but exactly all expected samples can be recovered, that specific case can be recovered. Incomplete or incompatible data remains unoptimized.
 
-Después de unir los frames, la UI puede enviar el PDF a `/pdf/deduplicate`. Esta operación compara bytes codificados y diccionarios equivalentes, incluidas las relaciones de máscara y perfil. Reescribe referencias a objetos equivalentes y retira los duplicados.
+### Final deduplication
 
-No decodifica fotos, no redimensiona ni vuelve a comprimir JPEG. Las vistas previas de las variantes siguen representando las mismas imágenes que el PDF unido. No se promete identidad binaria del archivo: cambian su serialización y sus referencias.
+After merging frames, the interface can send the PDF to `/pdf/deduplicate`. This operation compares encoded bytes and equivalent dictionaries, including mask and profile relationships. It rewrites references to equivalent objects and removes duplicates.
 
-Todas las etapas conservan el original si el archivo completo resultante no es menor. Los recuentos de objetos almacenados, recursos de dibujo, imágenes optimizadas y páginas son métricas distintas.
+It does not decode photos, resize images, or recompress JPEGs. Variant previews still represent the same images as the merged PDF. Binary file identity is not promised: serialization and references change.
 
-## HTTP local
+Every stage retains the original if the complete resulting file is not smaller. Stored objects, drawing resources, optimized images, and pages are distinct counts.
 
-`server.mjs` escucha en `127.0.0.1:3847`. El Host debe corresponder a loopback y CORS admite Figma, `null` y orígenes localhost. POST requiere `X-Pluma-Client: 1`; OPTIONS maneja el preflight de acceso a red privada.
+## Local HTTP
 
-| Ruta | Función |
+`engine/server.mjs` listens on `127.0.0.1:3847`. The Host must correspond to loopback, and CORS permits Figma, `null`, and localhost origins. POST requires `X-Pluma-Client: 1`; OPTIONS handles the private network access preflight.
+
+| Route | Purpose |
 | --- | --- |
-| `GET /health` | Descubrimiento del motor |
-| `POST /image` | Optimización raster independiente |
-| `POST /pdf` | Optimización de imágenes dentro de un PDF |
-| `POST /pdf/deduplicate` | Unión de recursos idénticos, sin recompresión |
+| `GET /health` | Engine discovery |
+| `POST /image` | Standalone raster optimization |
+| `POST /pdf` | Image optimization inside a PDF |
+| `POST /pdf/deduplicate` | Merge identical resources without recompression |
 
-Las consultas son estrictas: claves desconocidas, repetidas o fuera de rango se rechazan. `/pdf` acepta calidad 40–100 y `maxEdge` 512–8192, con valores por defecto de 82 y 2400. Ese límite expresa píxeles, no DPI.
+Query parameters are strict: unknown, repeated, or out-of-range keys are rejected. `/pdf` accepts quality 40–100 and `maxEdge` 512–8192, with defaults of 82 and 2400. The limit is expressed in pixels, not DPI.
 
-El motor acepta hasta 300 MiB por PDF, 40 MiB por imagen independiente y 40 millones de píxeles decodificados por imagen. Hay como máximo dos trabajos simultáneos. Sharp tiene un timeout de 20 segundos por operación y el recorrido de optimización un presupuesto de 90 segundos. Los errores HTTP son JSON estructurado; los resultados exponen tamaños y contadores mediante encabezados.
+The engine accepts up to 300 MiB per PDF, 40 MiB per standalone image, and 40 million decoded pixels per image. At most two jobs run concurrently. Sharp has a 20-second timeout per operation, and optimization traversal has a 90-second budget. HTTP errors use structured JSON; result headers expose sizes and counters.
 
-## Previsualización y diagnóstico
+## Preview and diagnostics
 
-`pdf-preview.ts` renderiza los bytes exportados con PDF.js y su worker incluidos en el bundle. No utiliza una captura del canvas como sustituto del PDF ni descarga un worker desde un CDN. Libera las tareas y superficies de dibujo al terminar.
+`src/pdf-preview.ts` renders exported bytes with PDF.js and its worker included in the bundle. It does not substitute a canvas screenshot for the PDF or download a worker from a CDN. It releases tasks and drawing surfaces when finished.
 
-`visual-diff.ts` compara todos los bytes RGBA para la igualdad exacta. También calcula diferencias y un mapa amplificado; un umbral de reporte no convierte dos imágenes distintas en idénticas. Toda evaluación se limita a la resolución utilizada.
+`src/visual-diff.ts` compares all RGBA bytes for exact equality. It also calculates differences and an amplified map; a reporting threshold does not make two different images identical. Every assessment is limited to the resolution used.
 
-`occlusion.ts` inspecciona geometría, visibilidad, máscaras y evidencia de opacidad. La lectura de bytes JPEG del documento solo ocurre durante el diagnóstico solicitado. Las coincidencias posibles no se convierten automáticamente en cobertura verificada y el diagnóstico nunca oculta o elimina una capa.
+`src/occlusion.ts` inspects geometry, visibility, masks, and evidence of opacity. It reads document JPEG bytes only during a requested diagnostic. Possible matches do not automatically become verified coverage, and diagnostics never hide or remove a layer.
 
-## Build, pruebas y publicación
+## Build, tests, and publication
 
-`npm run check` ejecuta typecheck, build y pruebas. Esbuild produce el controlador y la UI autocontenida. Las pruebas del controlador ejecutan el bundle real; las pruebas del motor generan PDFs y píxeles sintéticos. Una muestra privada puede usarse de forma opcional mediante `PLUMA_PDF_FIXTURE`, sin formar parte del repositorio.
+Validation runs locally through `npm run check`: typecheck, build, and tests. The repository does not include a GitHub Actions workflow. `scripts/build.mjs` uses esbuild to produce the controller and self-contained interface. Controller tests execute the actual bundle; engine tests generate synthetic PDFs and pixels. A private sample can optionally be supplied through `PLUMA_PDF_FIXTURE` without becoming part of the repository. Report skipped private tests separately from passed tests.
 
-El demo de `preview.mjs` sirve el panel en `127.0.0.1:3848` con datos sintéticos. Sirve para revisar interacción y layout, pero no demuestra integración con Figma ni calidad de un documento real.
+The demo in `scripts/preview.mjs` serves the panel at `127.0.0.1:3848` with synthetic data. It helps review interaction and layout but does not prove Figma integration or the quality of a real document.
 
-`scripts/local.mjs` comprueba el entorno, instala desde el lockfile cuando corresponde y verifica la identidad del servicio antes de reutilizar un puerto ocupado. El nombre, el motor y la versión de `/health` deben concordar con el paquete. `scripts/package.mjs` utiliza una lista permitida de archivos, rechaza enlaces simbólicos y genera un ZIP con inventario y SHA-256; no incorpora dependencias instaladas ni documentos del usuario.
+`scripts/local.mjs` checks the environment, installs from the lockfile when needed, prepares the bundles, and verifies service identity before reusing an occupied port. Its `ensureBuild` helper generates missing bundles; the install command explicitly rebuilds them. The name, engine, and version returned by `/health` must match the package. For release 1.0.1, keep the package, lockfile, engine identity, and archive version synchronized.
 
-El repositorio público contiene software, documentación genérica y muestras sintéticas. Los documentos de validación, capturas, capas, coordenadas, identificadores, métricas y fingerprints privados permanecen fuera de su snapshot y de sus releases. Publicar código no cambia los permisos de esos documentos.
+`scripts/package.mjs` uses an explicit file allowlist, rejects symbolic links, and generates an installable ZIP with an inventory and SHA-256. It includes the checked, prebuilt `dist/` bundles even though Git ignores them. It does not include installed dependencies or user documents. Platform launchers share the portable implementation; that does not establish that the Windows workflow has been tested manually on a Windows computer.
+
+The public repository contains software, generic documentation, and synthetic samples. Private validation documents, screenshots, layers, coordinates, identifiers, metrics, and fingerprints remain outside its snapshot and releases. Publishing code does not change permission to publish those documents.

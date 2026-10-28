@@ -12,13 +12,13 @@ async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'pluma package '));
   t.after(() => rm(root, { recursive: true, force: true }));
   const files = {
-    'manifest.json': '{}', 'package.json': JSON.stringify({ version: '1.0.0' }),
-    'package-lock.json': JSON.stringify({ packages: { '': { version: '1.0.0' } } }),
+    'manifest.json': '{}', 'package.json': JSON.stringify({ version: '1.0.1' }),
+    'package-lock.json': JSON.stringify({ packages: { '': { version: '1.0.1' } } }),
     'AGENTS.md': 'instructions', 'docs/BRAND.md': 'brand', 'tests/sample.test.mjs': '// synthetic test',
     'README.md': 'readme', 'THIRD_PARTY_NOTICES.md': 'notices', 'LICENSE': 'license',
-    'build.mjs': '// build', 'preview.mjs': '// preview', 'tsconfig.json': '{}',
-    'Instalar Pluma PDF.command': '#!/bin/zsh', 'Iniciar motor.command': '#!/bin/zsh', 'Ver interfaz.command': '#!/bin/zsh',
-    'Instalar Pluma PDF.cmd': '@echo off', 'Iniciar motor.cmd': '@echo off', 'Ver interfaz.cmd': '@echo off',
+    'scripts/build.mjs': '// build', 'scripts/preview.mjs': '// preview', 'tsconfig.json': '{}',
+    'scripts/macos/install.command': '#!/bin/zsh', 'scripts/macos/start-engine.command': '#!/bin/zsh', 'scripts/macos/preview.command': '#!/bin/zsh',
+    'scripts/windows/install.cmd': '@echo off', 'scripts/windows/start-engine.cmd': '@echo off', 'scripts/windows/preview.cmd': '@echo off',
     'dist/code.js': '// built', 'dist/ui.html': '<html>preview</html>',
     'engine/server.mjs': '// server', 'src/plugin.ts': '// source', 'scripts/local.mjs': '// local',
     'licenses/library.txt': 'license', 'docs/INSTALL.md': 'install',
@@ -56,9 +56,11 @@ test('release allowlist includes the installable plugin and excludes PDFs, work,
   const root = await fixture(t);
   const files = await collectReleaseFiles(root);
   const paths = files.map(file => file.path);
-  for (const required of ['AGENTS.md', 'tsconfig.json', 'tests/sample.test.mjs', 'manifest.json', 'dist/code.js', 'dist/ui.html', 'engine/server.mjs', 'package-lock.json', 'docs/INSTALL.md', 'scripts/local.mjs']) assert.ok(paths.includes(required));
+  for (const required of ['AGENTS.md', 'tsconfig.json', 'tests/sample.test.mjs', 'manifest.json', 'dist/code.js', 'dist/ui.html', 'engine/server.mjs', 'package-lock.json', 'docs/INSTALL.md', 'scripts/local.mjs', 'scripts/build.mjs', 'scripts/preview.mjs', 'scripts/macos/install.command', 'scripts/macos/start-engine.command', 'scripts/macos/preview.command', 'scripts/windows/install.cmd', 'scripts/windows/start-engine.cmd', 'scripts/windows/preview.cmd']) assert.ok(paths.includes(required), required);
   for (const path of paths) assert.doesNotMatch(path, /\.pdf$|node_modules|work\/|release\/|\.git\/|\.env$|private-metrics|private-notes/i);
-  assert.equal(files.find(file => file.path === 'Iniciar motor.command').mode, 0o100755);
+  assert.equal(files.find(file => file.path === 'scripts/macos/start-engine.command').mode, 0o100755);
+  assert.ok(!paths.some(path => /^[^/]+\.(?:command|cmd)$/.test(path)));
+  assert.ok(!paths.includes('build.mjs') && !paths.includes('preview.mjs'));
 });
 
 test('release ZIP is reproducible, independently readable, checksummed and includes a verifiable file inventory', async t => {
@@ -68,13 +70,14 @@ test('release ZIP is reproducible, independently readable, checksummed and inclu
   const second = await packageRelease({ root });
   assert.equal(first.sha256, second.sha256);
   assert.equal(first.sha256, createHash('sha256').update(zip).digest('hex'));
-  assert.equal(await readFile(first.path + '.sha256', 'utf8'), `${first.sha256}  PlumaPDF-1.0.0.zip\n`);
+  assert.equal(await readFile(first.path + '.sha256', 'utf8'), `${first.sha256}  PlumaPDF-1.0.1.zip\n`);
   const entries = contents(zip);
-  const inventory = JSON.parse(entries.get('PlumaPDF-1.0.0/RELEASE.json'));
+  const inventory = JSON.parse(entries.get('PlumaPDF-1.0.1/RELEASE.json'));
+  assert.equal(inventory.version, '1.0.1');
   assert.equal(inventory.dependenciesIncluded, false);
   assert.equal(inventory.minimumNode, '22.13.0');
   for (const file of inventory.files) {
-    const bytes = entries.get('PlumaPDF-1.0.0/' + file.path);
+    const bytes = entries.get('PlumaPDF-1.0.1/' + file.path);
     assert.equal(bytes.length, file.bytes);
     assert.equal(createHash('sha256').update(bytes).digest('hex'), file.sha256);
   }
@@ -91,11 +94,11 @@ test('missing bundles or a divergent lockfile prevent an incomplete release', as
   await assert.rejects(packageRelease({ root }), /dist\/code.js/);
   await writeFile(join(root, 'dist/code.js'), 'restored');
   await writeFile(join(root, 'package-lock.json'), JSON.stringify({ packages: { '': { version: '2.0.0' } } }));
-  await assert.rejects(packageRelease({ root }), /versiones diferentes/);
+  await assert.rejects(packageRelease({ root }), /different versions/);
 });
 
 test('a symlink cannot pull an external file into the public archive', { skip: process.platform === 'win32' }, async t => {
   const root = await fixture(t);
   await symlink(join(root, '.git/config'), join(root, 'src/private.ts'));
-  await assert.rejects(collectReleaseFiles(root), /enlaces simbólicos/);
+  await assert.rejects(collectReleaseFiles(root), /Symlinks/);
 });

@@ -21,7 +21,7 @@ export function supportsNode(version = process.versions.node) {
 }
 
 function requireNode() {
-  if (!supportsNode()) throw new Error(`Necesitas Node.js ${MIN_NODE} o posterior; tienes ${process.versions.node}. Instálalo desde https://nodejs.org/ y vuelve a abrir esta ventana.`);
+  if (!supportsNode()) throw new Error(`Node.js ${MIN_NODE} or later is required; you have ${process.versions.node}. Install it from https://nodejs.org/ and reopen this window.`);
 }
 
 export async function readPackage(root = ROOT) {
@@ -76,10 +76,10 @@ export function probeService({ port, name = 'Pluma PDF', engine = 'sharp', versi
 export function runProcess(command, args, { root = ROOT, stdio = 'inherit', ...options } = {}) {
   return new Promise((resolveRun, reject) => {
     const child = spawn(command, args, { cwd: root, stdio, ...options });
-    child.once('error', error => reject(new Error(`No se pudo ejecutar ${command}: ${error.message}`)));
+    child.once('error', error => reject(new Error(`Could not run ${command}: ${error.message}`)));
     child.once('exit', (code, signal) => {
       if (code === 0) resolveRun();
-      else reject(new Error(signal ? `El proceso se interrumpió (${signal}).` : `El proceso terminó con código ${code ?? 1}.`));
+      else reject(new Error(signal ? `The process was interrupted (${signal}).` : `The process exited with code ${code ?? 1}.`));
     });
   });
 }
@@ -101,7 +101,7 @@ export async function npmCommand(args, { platform = process.platform, execPath =
   if (platform === 'win32') {
     // All arguments are fixed by this file; no paths or user values enter cmd.exe.
     const permitted = new Set(['ci', '--include=dev', '--include=optional', '--no-fund', '--no-audit']);
-    if (args.some(arg => !permitted.has(arg))) throw new Error('Argumentos de npm no permitidos.');
+    if (args.some(arg => !permitted.has(arg))) throw new Error('Unsupported npm arguments.');
     return { command: env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', `npm ${args.join(' ')}`] };
   }
   return { command: 'npm', args };
@@ -120,14 +120,14 @@ export function dependenciesReady(root = ROOT) {
 
 export async function ensureDependencies({ root = ROOT, force = false, ready = dependenciesReady, run = runProcess, log = console.log } = {}) {
   if (!force && ready(root)) return;
-  log('Instalando las dependencias de Pluma PDF. Esta primera descarga necesita internet…');
+  log('Installing Pluma PDF dependencies. This initial download requires internet access…');
   const npm = await npmCommand(['ci', '--include=dev', '--include=optional', '--no-fund', '--no-audit']);
   try {
     await run(npm.command, npm.args, { root });
   } catch (error) {
-    throw new Error(`La instalación no terminó. Comprueba tu conexión y que Node.js incluye npm; después vuelve a abrir Instalar Pluma PDF. ${error.message}`);
+    throw new Error(`Installation did not complete. Check your internet connection and that Node.js includes npm, then run the installer again. ${error.message}`);
   }
-  if (!ready(root)) throw new Error('Las dependencias no cargan para este equipo. No copies node_modules de otro ordenador: vuelve a ejecutar Instalar Pluma PDF en este equipo.');
+  if (!ready(root)) throw new Error('Dependencies could not load on this computer. Do not copy node_modules from another computer: run the installer on this computer instead.');
 }
 
 export async function ensureBuild({ root = ROOT, force = false, run = runProcess } = {}) {
@@ -137,18 +137,18 @@ export async function ensureBuild({ root = ROOT, force = false, run = runProcess
       return;
     } catch { /* Source downloads may not yet contain the generated bundles. */ }
   }
-  await run(process.execPath, ['build.mjs'], { root });
+  await run(process.execPath, ['scripts/build.mjs'], { root });
 }
 
 function portError(port) {
-  return new Error(`El puerto ${port} está ocupado por otra aplicación o una versión distinta de Pluma PDF. Cierra esa aplicación y vuelve a iniciar Pluma. No se ha detenido ningún proceso.`);
+  return new Error(`Port ${port} is occupied by another application or a different version of Pluma PDF. Close that application and start Pluma again. No process has been stopped.`);
 }
 
 export async function startService({ port, version, name = 'Pluma PDF', engine = 'sharp', create, probe = probeService, log = console.log } = {}) {
   const expected = { port, version, name, engine };
   const before = await probe(expected);
   if (before.state === 'ready') {
-    log(`Pluma PDF ya está abierto en http://127.0.0.1:${port}. Puedes volver a Figma; no hace falta abrir otro motor.`);
+    log(`Pluma PDF is already running at http://127.0.0.1:${port}. Reusing the existing service; no second instance is needed.`);
     return { reused: true, server: null };
   }
   if (before.state !== 'absent') throw portError(port);
@@ -166,7 +166,7 @@ export async function startService({ port, version, name = 'Pluma PDF', engine =
     if (error.code !== 'EADDRINUSE') throw error;
     const after = await probe(expected);
     if (after.state === 'ready') {
-      log(`Pluma PDF ya está abierto en http://127.0.0.1:${port}.`);
+      log(`Pluma PDF is already running at http://127.0.0.1:${port}.`);
       return { reused: true, server: null };
     }
     throw portError(port);
@@ -190,7 +190,7 @@ async function openBrowser(url) {
     else if (process.platform === 'win32') await runProcess(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', `start "" "${url}"`]);
     else await runProcess('xdg-open', [url]);
   } catch {
-    console.log(`Abre esta dirección en tu navegador: ${url}`);
+    console.log(`Open this address in your browser: ${url}`);
   }
 }
 
@@ -200,13 +200,13 @@ export async function main(command, { root = ROOT } = {}) {
   if (command === 'install') {
     await ensureDependencies({ root, force: true });
     await ensureBuild({ root, force: true });
-    console.log(`\nPluma PDF está instalado.\n1. Abre Iniciar motor.\n2. En Figma Desktop importa este archivo:\n${join(root, 'manifest.json')}\n\nPasos completos: docs/INSTALL.md`);
+    console.log(`\nPluma PDF is installed.\n1. Run npm start, or open scripts/macos/start-engine.command (macOS) or scripts/windows/start-engine.cmd (Windows).\n2. In Figma Desktop, import this manifest:\n${join(root, 'manifest.json')}\n\nFull instructions: docs/INSTALL.md`);
     return;
   }
   if (command === 'check') {
-    console.log(`Node.js ${process.versions.node}: compatible. Dependencias: ${dependenciesReady(root) ? 'listas' : 'pendientes de instalar'}.`);
+    console.log(`Node.js ${process.versions.node}: supported. Dependencies: ${dependenciesReady(root) ? 'ready' : 'not installed yet'}.`);
     const status = await probeService({ port: ENGINE_PORT, version: pkg.version });
-    console.log(`Motor local: ${status.state === 'ready' ? 'conectado' : status.state === 'absent' ? 'apagado' : 'puerto ocupado por otro servicio o versión'}.`);
+    console.log(`Local engine: ${status.state === 'ready' ? 'connected' : status.state === 'absent' ? 'stopped' : 'port occupied by another service or version'}.`);
     return;
   }
   if (command === 'engine') {
@@ -220,9 +220,9 @@ export async function main(command, { root = ROOT } = {}) {
     });
     closeOnSignals(result.server);
     if (!result.reused) {
-      console.log(`Pluma PDF · motor local en http://127.0.0.1:${ENGINE_PORT}`);
-      console.log('Deja esta ventana abierta mientras usas Inteligente. Ctrl+C detiene el motor.');
-      console.log('Los PDFs y las imágenes se procesan en memoria en este equipo.');
+      console.log(`Pluma PDF · local engine at http://127.0.0.1:${ENGINE_PORT}`);
+      console.log('Keep this window open while using Intelligent mode. Press Ctrl+C to stop the engine.');
+      console.log('PDFs and images are processed in memory on this computer.');
     }
     return;
   }
@@ -245,16 +245,16 @@ export async function main(command, { root = ROOT } = {}) {
             const html = await readFile(join(root, 'dist/ui.html'));
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
             res.end(html);
-          } catch { res.writeHead(503); res.end('Vuelve a ejecutar Instalar Pluma PDF.'); }
+          } catch { res.writeHead(503); res.end('Run the Pluma PDF installer again.'); }
         });
       },
     });
     closeOnSignals(result.server);
-    console.log('Demo con páginas de ejemplo. Para exportar tu diseño abre el plugin en Figma Desktop.');
+    console.log('Demo with sample pages. To export your design, open the plugin in Figma Desktop.');
     await openBrowser(`http://127.0.0.1:${PREVIEW_PORT}`);
     return;
   }
-  throw new Error('Usa: node scripts/local.mjs install | engine | preview | check');
+  throw new Error('Usage: node scripts/local.mjs install | engine | preview | check');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

@@ -1,80 +1,81 @@
-# Instrucciones para trabajar en Pluma PDF
+# Instructions for working on Pluma PDF
 
-Este repositorio contiene un plugin de Figma y un motor Node local. Conserva el flujo actual y realiza cambios pequeños y verificables. Las instrucciones y autorizaciones vigentes del usuario prevalecen sobre este archivo.
+This repository contains a Figma plugin and a local Node engine. Preserve the existing workflow and make small, verifiable changes. The user's current instructions and authorizations take precedence over this file.
 
-## Documentación actual con Context7
+## Current documentation with Context7
 
-Consulta Context7 MCP cuando una tarea trate sobre una biblioteca, framework, SDK, API, herramienta CLI o servicio cloud: sintaxis, configuración, versiones, migración, instalación o errores específicos. Hazlo incluso si crees conocer la respuesta; prefiere Context7 a una búsqueda web para documentación de librerías.
+Consult Context7 MCP whenever a task concerns a library, framework, SDK, API, CLI tool, or cloud service: syntax, configuration, versions, migration, installation, or specific errors. Do so even if you think you know the answer; prefer Context7 over web search for library documentation.
 
-1. Empieza con `resolve-library-id`, indicando el nombre de la biblioteca y qué necesitas consultar. Omite este paso solo cuando el usuario proporcione un ID exacto `/org/project` o una versión de ese ID.
-2. Escoge la coincidencia por nombre, relevancia, cobertura de ejemplos, reputación y puntuación. Si la coincidencia es mala, reformula la búsqueda. Respeta la versión solicitada y revisa la versión instalada en el lockfile.
-3. Usa `query-docs` con el ID elegido y una pregunta concreta sobre un concepto. Consulta por separado conceptos independientes; combínalos solo si necesitas entender su interacción.
-4. Basa la implementación y la explicación en lo consultado.
+1. Start with `resolve-library-id`, providing the library name and what you need to look up. Skip this step only when the user provides an exact `/org/project` ID or a version of that ID.
+2. Choose the match by name, relevance, example coverage, reputation, and score. If the match is poor, rephrase the search. Respect the requested version and check the installed version in the lockfile.
+3. Use `query-docs` with the selected ID and a specific question about one concept. Query independent concepts separately; combine them only when you need to understand their interaction.
+4. Base the implementation and explanation on the retrieved documentation.
 
-No hace falta Context7 para refactorización mecánica, scripts escritos desde cero, lógica de negocio, revisión de código general o conceptos de programación que no dependan de una API de biblioteca.
+Context7 is not required for mechanical refactoring, scripts written from scratch, business logic, general code review, or programming concepts that do not depend on a library API.
 
-## Invariantes del producto
+## Product invariants
 
-- **El diseño de Figma permanece intacto.** Exportar o analizar no puede crear clones, cambiar rellenos, máscaras, visibilidad, opacidad, jerarquías, posiciones ni dimensiones. No uses cambios temporales del documento como paso de exportación.
-- **Foco es la única excepción de navegación.** La acción explícita de enfocar una capa puede cambiar la selección y el viewport. No puede editar su contenido ni descartar el conjunto de páginas ya revisado. No enfoques durante una exportación activa.
-- **Inteligente parte del PDF nativo.** Optimiza imágenes internas del PDF exportado; conserva texto, fuentes e instrucciones vectoriales. No rasterices un frame completo como comportamiento predeterminado. El modo Compacto permite ese compromiso de forma explícita.
-- **Original conserva el contenido exportado.** Unir páginas puede cambiar la serialización y las referencias del PDF; no debe volver a codificar sus imágenes ni alterar sus instrucciones de dibujo.
-- **Antes y después comparten captura.** Guarda los originales en memoria y compara sus variantes. No presentes mediciones obtenidas de dos exportaciones diferentes como una comparación de la misma captura.
-- **JPEG tiene pérdida.** No prometas igualdad de píxeles, calidad de impresión ni un tamaño absoluto. Igualdad RGBA exacta, umbral de diferencias y evaluación visual son resultados distintos.
-- **Diagnóstico no elimina capas.** Las superposiciones posibles y la cobertura geométrica verificada deben distinguirse. Una coincidencia de imagen o de posición no demuestra redundancia visual.
+- **The Figma design remains intact.** Exporting or analyzing must not create clones or change fills, masks, visibility, opacity, hierarchies, positions, or dimensions. Do not use temporary document changes as an export step.
+- **"Foco" is the only navigation exception.** An explicit request to focus a layer may change the selection and viewport. It must not edit the layer's content or discard the set of pages already reviewed. Do not focus during an active export.
+- **"Inteligente" starts from the native PDF.** Optimize images inside the exported PDF; preserve text, fonts, and vector instructions. Do not rasterize an entire frame by default. The "Compacto" mode explicitly allows that tradeoff.
+- **"Original" preserves the exported content.** Merging pages may change PDF serialization and references; it must not re-encode images or alter drawing instructions.
+- **Before and after share the same capture.** Keep originals in memory and compare their variants. Do not present measurements from two different exports as a comparison of the same capture.
+- **JPEG is lossy.** Do not promise pixel equality, print quality, or an absolute file size. Exact RGBA equality, a difference threshold, and visual assessment are distinct results.
+- **"Diagnóstico" does not remove layers.** Distinguish possible overlaps from verified geometric coverage. Matching images or positions do not establish visual redundancy.
 
-## PDF, imágenes y transparencia
+## PDF, images, and transparency
 
-- Conserva perfiles ICC y parámetros de interpretación. Si no puedes demostrar compatibilidad, deja ese recurso intacto.
-- No adivines `/Decode`, predictores Flate, `ColorTransform`, espacios CMYK/Indexed, `/Matte` ni máscaras complejas.
-- Remuestrea color y alpha juntos para evitar halos. El alpha resultante se guarda sin pérdida. Nunca modifiques una máscara compartida: crea otra referencia para la variante y elimina la anterior solo si ya no tiene referencias.
-- Solo puedes retirar una máscara opaca después de verificar que todas sus muestras son 255. Tener canal alpha no significa tener transparencia real.
-- Deduplica por bytes codificados y diccionario equivalente, incluyendo máscara y perfil. La pasada final `/pdf/deduplicate` no decodifica ni vuelve a comprimir imágenes.
-- Una imagen compartida debe cubrir su mayor uso en todo el documento. Al unir alias, un uso desconocido fuerza el límite global. Los grupos o patrones ambiguos mantienen ese comportamiento conservador.
-- Conserva los límites de bytes, píxeles, concurrencia y tiempo. No amplíes imágenes pequeñas. Devuelve el original cuando el resultado completo no sea menor.
+- Preserve ICC profiles and interpretation parameters. If you cannot establish compatibility, leave that resource intact.
+- Do not guess `/Decode`, Flate predictors, `ColorTransform`, CMYK/Indexed color spaces, `/Matte`, or complex masks.
+- Resample color and alpha together to avoid halos. Store the resulting alpha losslessly. Never modify a shared mask: create a separate reference for the variant and remove the old one only when nothing references it.
+- Remove an opaque mask only after verifying that all its samples are 255. Having an alpha channel does not imply actual transparency.
+- Deduplicate by encoded bytes and equivalent dictionaries, including masks and profiles. The final `/pdf/deduplicate` pass must not decode or recompress images.
+- A shared image must cover its largest use throughout the document. When merging aliases, an unknown use forces the global limit. Ambiguous groups or patterns retain that conservative behavior.
+- Preserve byte, pixel, concurrency, and time limits. Do not upscale small images. Return the original when the complete result is not smaller.
 
-## Interfaz y protocolo
+## Interface and protocol
 
-La interfaz aceptada es vertical, de **460 × 800**. Verifica el ancho real del plugin, el scroll, los textos largos y la lista completa; una captura del demo ancho no sustituye esa comprobación. Evita que el contenido mínimo de grids o elementos flex expanda el panel horizontalmente.
+The accepted interface is vertical, **460 × 800**. Check the actual plugin width, scrolling, long text, and the complete list; a screenshot of the wide demo does not replace that check. Prevent the minimum content size of grids or flex items from expanding the panel horizontally.
 
-Mantén el protocolo por `jobId`, la entrega secuencial de páginas y los ACK. Una respuesta antigua, un cambio de ajustes o una cancelación no puede publicar un resultado obsoleto. Respeta el límite de caché y libera URLs de blobs, canvases y tareas PDF.js.
+Preserve the `jobId` protocol, sequential page delivery, and ACKs. A stale response, settings change, or cancellation must not publish an outdated result. Respect the cache limit and release blob URLs, canvases, and PDF.js tasks.
 
-No introduzcas solicitudes a CDNs o servicios de optimización. El worker PDF.js se incluye en el bundle. Los bytes del usuario solo deben viajar al motor de localhost, cuando el modo elegido lo necesite.
+Do not introduce requests to CDNs or optimization services. The PDF.js worker is included in the bundle. User bytes must only travel to the localhost engine when the selected mode requires it.
 
-## Estructura y desarrollo
+## Structure and development
 
-- `src/plugin.ts`: API de Figma, alcance, orden del canvas, exportación, cancelación, diagnóstico y foco.
-- `src/ui.*`: interfaz, caché, variantes, unión y descarga.
-- `src/geometry.ts`, `occlusion.ts`, `pdf-preview.ts`, `visual-diff.ts`: geometría, diagnóstico y comparación.
-- `engine/`: HTTP en loopback, Sharp, optimización PDF, colocación y deduplicación.
-- `tests/`: fixtures sintéticos y pruebas de los límites anteriores.
-- `build.mjs` genera `dist/code.js` y `dist/ui.html`. No edites esos resultados a mano.
-- `preview.mjs` ofrece el demo local; no controla un documento real de Figma.
+- `src/plugin.ts`: Figma API, scope, canvas order, export, cancellation, diagnostics, and focus.
+- `src/ui.*`: interface, cache, variants, merging, and download.
+- `src/geometry.ts`, `occlusion.ts`, `pdf-preview.ts`, `visual-diff.ts`: geometry, diagnostics, and comparison.
+- `engine/`: loopback HTTP, Sharp, PDF optimization, placement, and deduplication.
+- `tests/`: synthetic fixtures and tests for the limits above.
+- `scripts/build.mjs` generates `dist/code.js` and `dist/ui.html`. `dist/` is ignored by Git and is absent from source checkouts and GitHub's automatic source archives. The installable release ZIP includes these prebuilt bundles. Do not edit generated outputs by hand or commit them.
+- `scripts/preview.mjs` provides the local demo; it does not control a real Figma document.
+- `scripts/macos/{install,start-engine,preview}.command` and `scripts/windows/{install,start-engine,preview}.cmd` are the platform launchers. They use `scripts/local.mjs` for installation, engine startup, and the demo.
 
-Usa Node compatible con `package.json` y `npm ci` para respetar el lockfile. No reestructures el proyecto para una corrección localizada. No reconstruyas o recargues la UI en mitad de una exportación activa; coordina ese trabajo o usa una copia aislada.
+Use a Node version compatible with `package.json` and use `npm ci` to respect the lockfile. The installer prepares the bundles, including when `dist/` is missing from a source download; complete installation before importing the manifest into Figma. Do not restructure the project for a localized fix. Do not rebuild or reload the UI during an active export; coordinate that work or use an isolated copy.
 
-## Verificación
+## Verification
 
-Para una validación completa ejecuta `npm run check`: typecheck, build y pruebas. Las pruebas del controlador verifican el bundle que Figma importa, por lo que el build debe corresponder al código fuente. Durante trabajo focalizado puedes compilar el controlador en memoria con `PLUMA_TEST_CONTROLLER_SOURCE=1`.
+For complete local validation, run `npm run check`: typecheck, build, and tests. Do not add a GitHub Actions workflow; validation is run locally. Controller tests verify the bundle that Figma imports, so the build must match the source code. During focused work, you can compile the controller in memory with `PLUMA_TEST_CONTROLLER_SOURCE=1`.
 
-Las pruebas públicas deben generar sus PDFs y píxeles sintéticos. La regresión de 55 frames utiliza un grid artificial, nombres inversos y un orden de capas diferente del orden visual. Conserva su independencia respecto de documentos de clientes.
+Public tests must generate their own synthetic PDFs and pixels. The 55-frame regression uses an artificial grid, reversed names, and a layer order that differs from the visual order. Keep it independent of client documents.
 
-`PLUMA_PDF_FIXTURE` permite una prueba privada opcional. Su archivo se proporciona fuera del repositorio; nunca lo copies al árbol publicable. Informa por separado pruebas aprobadas, fallidas y omitidas: una prueba privada omitida no equivale a una aprobada.
+`PLUMA_PDF_FIXTURE` enables an optional private test. Its file is supplied outside the repository; never copy it into the publishable tree. Report passed, failed, and skipped tests separately: a skipped private test is not a passed test.
 
-Para cambios de optimización, valida contenido y renderizado: páginas, texto, operadores, fuentes, vínculos de imagen, ICC y alpha. Las referencias numéricas pueden cambiar después de `copyPages`; compara sus contenidos semánticos. Inspecciona también regiones con detalle y transparencias, no solo el promedio de una página casi blanca.
+For optimization changes, validate content and rendering: pages, text, operators, fonts, image references, ICC, and alpha. Numeric references may change after `copyPages`; compare their semantic content. Also inspect regions with detail and transparency, beyond the average of an almost white page.
 
-## Privacidad y publicación
+## Privacy and publication
 
-Publicar este software no autoriza a publicar los documentos utilizados durante su desarrollo. No incluyas PDFs de clientes, capturas, renders, fotos extraídas, nombres de proyectos privados, identificadores de archivos o capas privados de Figma, coordenadas de un canvas real, hashes de documentos privados, rutas personales, credenciales, archivos `.env` ni informes que los contengan.
+Publishing this software does not authorize publishing the documents used during its development. Do not include client PDFs, screenshots, renders, extracted photos, private project names, private Figma file or layer IDs, coordinates from a real canvas, private document hashes, personal paths, credentials, `.env` files, or reports containing them.
 
-`work/`, dependencias instaladas, cachés, logs y resultados de validaciones privadas permanecen locales. Mantén los informes del usuario sin borrarlos: exclúyelos del snapshot público o archívalos localmente. Si necesitas una muestra pública, créala con datos sintéticos y documenta su origen.
+`work/`, installed dependencies, caches, logs, and private validation results remain local. Preserve the user's reports without deleting them: exclude them from the public snapshot or archive them locally. If you need a public sample, create it with synthetic data and document its origin.
 
-Antes de crear un commit público, etiqueta o artefacto de release:
+Before creating a public commit, tag, or release artifact:
 
-1. Revisa la lista completa de archivos que se publicarán, incluidos archivos ocultos y el contenido del ZIP. No confíes únicamente en `.gitignore`.
-2. Comprueba los invariantes y ejecuta la validación correspondiente; para una release, `npm run check` debe aprobarse.
-3. Genera los bundles desde esa misma revisión, comprueba los destinos del manifest e incluye los avisos y licencias de terceros necesarios. Mantén sincronizada la versión de `package.json`, el lockfile, `/health` y el artefacto de release: los lanzadores verifican esa identidad.
-4. Verifica que no se han incorporado datos privados en tests, documentación, screenshots o resultados generados. No atribuyas métricas privadas a un ejemplo sintético.
-5. Publica dentro del alcance autorizado. Una publicación en GitHub no autoriza publicar en Figma Community ni subir material de diseño.
+1. Review the complete list of files to be published, including hidden files and ZIP contents. Do not rely solely on `.gitignore`.
+2. Check the invariants and run the appropriate validation; `npm run check` must pass for a release.
+3. Generate bundles from that same revision, check manifest targets, and include the prebuilt `dist/` files and required third-party notices and licenses in the installable release ZIP. Keep generated bundles out of Git. Keep the version in `package.json`, the lockfile, `/health`, and the release artifact synchronized: the launchers verify that identity.
+4. Verify that tests, documentation, screenshots, and generated outputs contain no private data. Do not attribute private metrics to a synthetic example.
+5. Publish within the authorized scope. Publishing on GitHub does not authorize publishing on Figma Community or uploading design material.
 
-Los cambios de código, las muestras públicas y los informes de una validación privada son artefactos distintos. Mantén esa separación sin modificar el documento del usuario.
+Code changes, public samples, and private validation reports are distinct artifacts. Keep them separate without modifying the user's document.

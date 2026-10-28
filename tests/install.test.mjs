@@ -11,7 +11,7 @@ import { supportsNode, probeService, startService, ensureDependencies, ensureBui
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 async function temporary(t) {
-  const path = await mkdtemp(join(tmpdir(), 'pluma install con espacios '));
+  const path = await mkdtemp(join(tmpdir(), 'pluma install with spaces '));
   t.after(() => rm(path, { recursive: true, force: true }));
   return path;
 }
@@ -51,12 +51,12 @@ test('starting twice reuses the healthy engine without loading dependencies or c
   const result = await startService({ port: 3847, version: '1.0.0', probe: async () => ({ state: 'ready' }), create: () => { created = true; }, log: value => messages.push(value) });
   assert.equal(result.reused, true);
   assert.equal(created, false);
-  assert.match(messages.join(), /ya está abierto/);
+  assert.match(messages.join(), /already running/);
 });
 
 test('unrelated listeners fail with an actionable message and are never terminated', async t => {
   const fixture = await serverFor(t, (_req, res) => res.end('not Pluma'));
-  await assert.rejects(startService({ port: fixture.port, version: '1.0.0', create: () => { throw new Error('must not create'); } }), /ocupado.*otra aplicación/);
+  await assert.rejects(startService({ port: fixture.port, version: '1.0.0', create: () => { throw new Error('must not create'); } }), /occupied.*another application/);
   assert.equal(fixture.server.listening, true);
 });
 
@@ -80,7 +80,7 @@ test('the EADDRINUSE race rechecks health and reuses only a compatible Pluma ins
   const reused = await startService({ port: 3847, create: duplicate, probe: async () => ({ state: ++probes === 1 ? 'absent' : 'ready' }), log: () => {} });
   assert.equal(reused.reused, true);
   probes = 0;
-  await assert.rejects(startService({ port: 3847, create: duplicate, probe: async () => ({ state: ++probes === 1 ? 'absent' : 'occupied' }), log: () => {} }), /No se ha detenido ningún proceso/);
+  await assert.rejects(startService({ port: 3847, create: duplicate, probe: async () => ({ state: ++probes === 1 ? 'absent' : 'occupied' }), log: () => {} }), /No process has been stopped/);
 });
 
 test('dependency install runs frozen npm ci with optional binaries only when needed', async t => {
@@ -98,7 +98,7 @@ test('dependency install runs frozen npm ci with optional binaries only when nee
   assert.equal(commands[0].options.root, folder);
   await ensureDependencies({ root: folder, force: true, ready, run, log: () => {} });
   assert.equal(commands.length, 2);
-  await assert.rejects(ensureDependencies({ root: folder, ready: () => false, run: async () => { throw new Error('offline'); }, log: () => {} }), /Comprueba tu conexión/);
+  await assert.rejects(ensureDependencies({ root: folder, ready: () => false, run: async () => { throw new Error('offline'); }, log: () => {} }), /Check your internet connection/);
 });
 
 test('a complete distribution keeps its bundles; a source-only download builds in its own folder', async t => {
@@ -107,7 +107,7 @@ test('a complete distribution keeps its bundles; a source-only download builds i
   const run = async (...args) => commands.push(args);
   await ensureBuild({ root: folder, run });
   assert.equal(commands.length, 1);
-  assert.deepEqual(commands[0][1], ['build.mjs']);
+  assert.deepEqual(commands[0][1], ['scripts/build.mjs']);
   assert.equal(commands[0][2].root, folder);
   await mkdir(join(folder, 'dist'));
   await writeFile(join(folder, 'dist/code.js'), 'code');
@@ -122,7 +122,7 @@ test('npm Windows fallback contains only fixed arguments and never interpolates 
   assert.deepEqual(await npmCommand(['ci', '--include=optional', '--no-fund', '--no-audit'], options), {
     command: 'cmd.exe', args: ['/d', '/s', '/c', 'npm ci --include=optional --no-fund --no-audit'],
   });
-  await assert.rejects(npmCommand(['ci', '& echo injected'], options), /no permitidos/);
+  await assert.rejects(npmCommand(['ci', '& echo injected'], options), /Unsupported npm arguments/);
   const cli = join(folder, 'npm-cli.js');
   await writeFile(cli, '// fixture');
   assert.deepEqual(await npmCommand(['ci'], { ...options, env: { npm_execpath: cli } }), { command: options.execPath, args: [cli, 'ci'] });
@@ -130,11 +130,12 @@ test('npm Windows fallback contains only fixed arguments and never interpolates 
 
 test('macOS wrappers resolve their own folder with spaces and preserve command/exit status', { skip: process.platform !== 'darwin' }, async t => {
   const folder = await temporary(t);
-  await mkdir(join(folder, 'scripts'));
+  await mkdir(join(folder, 'scripts/macos'), { recursive: true });
   await writeFile(join(folder, 'scripts/local.mjs'), 'process.stdout.write(JSON.stringify({cwd:process.cwd(),command:process.argv[2]}));process.exitCode=7;');
-  for (const [filename, command] of [['Instalar Pluma PDF.command', 'install'], ['Iniciar motor.command', 'engine'], ['Ver interfaz.command', 'preview']]) {
-    await copyFile(join(root, filename), join(folder, filename));
-    const child = spawn('/bin/zsh', [join(folder, filename)], { cwd: tmpdir(), stdio: ['ignore', 'pipe', 'pipe'] });
+  for (const [filename, command] of [['install.command', 'install'], ['start-engine.command', 'engine'], ['preview.command', 'preview']]) {
+    const path = join('scripts/macos', filename);
+    await copyFile(join(root, path), join(folder, path));
+    const child = spawn('/bin/zsh', [join(folder, path)], { cwd: tmpdir(), stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     child.stdout.on('data', bytes => { output += bytes; });
     const [status] = await once(child, 'exit');
@@ -144,9 +145,9 @@ test('macOS wrappers resolve their own folder with spaces and preserve command/e
 });
 
 test('Windows wrapper source anchors paths to its folder and preserves Node exit codes', async () => {
-  for (const [filename, command] of [['Instalar Pluma PDF.cmd', 'install'], ['Iniciar motor.cmd', 'engine'], ['Ver interfaz.cmd', 'preview']]) {
-    const source = await readFile(join(root, filename), 'utf8');
-    assert.match(source, /cd \/d "%~dp0"/);
+  for (const [filename, command] of [['install.cmd', 'install'], ['start-engine.cmd', 'engine'], ['preview.cmd', 'preview']]) {
+    const source = await readFile(join(root, 'scripts/windows', filename), 'utf8');
+    assert.ok(source.includes('cd /d "%~dp0..\\.."'));
     assert.ok(source.includes(`node scripts\\local.mjs ${command}`));
     assert.match(source, /set "PLUMA_EXIT=%ERRORLEVEL%"/);
     assert.match(source, /exit \/b %PLUMA_EXIT%/);

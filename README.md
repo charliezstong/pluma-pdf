@@ -1,82 +1,89 @@
-<p align="center"><img src="assets/brand/cover.svg" alt="Pluma PDF — PDFs más ligeros. Todo en tu equipo." width="100%"></p>
+<p align="center"><img src="assets/brand/cover.webp" alt="Pluma PDF — Lighter PDFs. Native detail." width="100%"></p>
 
 <p align="center">
-  <a href="https://github.com/charliezstong/pluma-pdf/releases/latest">Descargar</a> ·
-  <a href="docs/INSTALL.md">Instalación paso a paso</a> ·
-  <a href="docs/ARCHITECTURE.md">Cómo funciona</a> ·
-  <a href="docs/CONTRIBUTING.md">Contribuir</a>
+  <a href="https://github.com/charliezstong/pluma-pdf/releases/latest">Download</a> ·
+  <a href="docs/INSTALL.md">Installation guide</a> ·
+  <a href="docs/ARCHITECTURE.md">How it works</a> ·
+  <a href="docs/CONTRIBUTING.md">Contributing</a>
 </p>
 
-**Pluma PDF** exporta PDFs de Figma y reduce el peso de sus imágenes conservando texto y vectores. Puedes revisar cada página, comparar el original y el resultado, y descargar el libro completo. El procesamiento ocurre en tu computador.
+**Pluma PDF** exports lighter PDFs from Figma by optimizing embedded images while preserving native text and vectors. Review each page, compare the original and optimized PDF, and download the complete document. Processing stays on your computer.
 
-Gratis, sin suscripciones y con código abierto. Es un plugin de desarrollo para **Figma Desktop**, acompañado de un motor local. Todavía no se distribuye desde Figma Community.
+Free and open source, with no subscription. Pluma runs as a development plugin in **Figma Desktop**, with an optional local Node.js engine. The repository, documentation and installation tools are in English. The plugin interface is currently in Spanish.
 
-## Instalar
+## Install
 
-1. Instala **[Node.js 24 LTS](https://nodejs.org/)**, que incluye npm.
-2. Descarga **PlumaPDF-1.0.0.zip** desde la [última release](https://github.com/charliezstong/pluma-pdf/releases/latest), descomprímelo y conserva la carpeta completa.
-3. Abre **Instalar Pluma PDF.command** en Mac o **Instalar Pluma PDF.cmd** en Windows. La primera instalación descarga las dependencias.
-4. En **Figma Desktop**, abre un archivo y elige **Plugins → Development → Import plugin from manifest…**. Selecciona `manifest.json` de la carpeta.
-5. Abre **Iniciar motor.command** o **Iniciar motor.cmd**, deja la ventana abierta y ejecuta **Pluma PDF · Local** desde Development.
+1. Install **[Node.js 24 LTS](https://nodejs.org/)**, which includes npm.
+2. Download the ZIP from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
+3. Run the installer for your operating system:
 
-En Mac, si Finder no permite abrir un lanzador descargado, usa la alternativa de Terminal descrita en la [guía de instalación](docs/INSTALL.md). No necesitas desactivar las protecciones del sistema.
+| Platform | Install | Start the local engine |
+| --- | --- | --- |
+| macOS | `scripts/macos/install.command` | `scripts/macos/start-engine.command` |
+| Windows | `scripts/windows/install.cmd` | `scripts/windows/start-engine.cmd` |
 
-**Importante:** el modo Inteligente necesita el motor local abierto. Original y Compacto pueden funcionar sin él. Los lanzadores de Windows están incluidos; las pruebas automatizadas no sustituyen una verificación manual dentro de Figma Desktop en ese sistema.
+4. In **Figma Desktop**, open a design file and choose **Plugins → Development → Import plugin from manifest…**. Select `manifest.json` at the extracted folder's root.
+5. Start the engine, leave its window open, and run **Pluma PDF · Local** from Development.
 
-## Usar
+The first installation downloads dependencies. If macOS blocks a downloaded launcher, use the Terminal alternative in the [installation guide](docs/INSTALL.md). The Smart mode needs the engine running; Original and Compact can export without it. This release is imported locally and is not distributed through Figma Community.
 
-<p align="center"><img src="assets/brand/preview.png" alt="Pluma PDF en un panel vertical con tres páginas sintéticas y comparador antes/después" width="460"></p>
+## Use
 
-La captura utiliza un documento de muestra generado con formas y texto; sus cifras de reducción no representan otros archivos.
+<p align="center"><img src="assets/brand/preview.png" alt="Vertical Pluma PDF panel showing synthetic pages and an original/optimized PDF comparison" width="460"></p>
 
-Selecciona frames o elige **Página** para cargar los de la página actual. Revisa las miniaturas y el orden **Canvas / Nombre / Manual**, elige un perfil y pulsa **Analizar y previsualizar**. Después de revisar el resultado, pulsa **Descargar PDF**.
+This screenshot uses the built-in synthetic document. Its reduction figures do not predict savings for other files.
 
-- **Comparación real.** Original, Resultado, deslizador y mapa de diferencias entre los PDFs renderizados.
-- **Peso medido.** Antes/después por frame y tamaño final después de unir y compartir recursos repetidos.
-- **Capas superpuestas.** Detecta posibles coincidencias por posición, tamaño y solapamiento. Los avisos permiten localizar cada capa en Figma para revisarla; no las elimina.
-- **Interfaz vertical.** Panel de 460 × 800 con miniaturas que se desplazan dentro de su propia fila.
-- **Reanálisis.** Cambia de perfil usando los originales en memoria. Pulsa ↻ después de editar el diseño para volver a leerlo.
+Select frames or choose **Página** (Page) to load the current page. Review thumbnails and **Canvas / Nombre / Manual** ordering, select a quality profile, and click **Analizar y previsualizar** (Analyze and preview). After reviewing the result, click **Descargar PDF** (Download PDF).
 
-| Modo | Resultado |
+- **Real comparison:** original and optimized PDF renders, a draggable slider, and a deterministic difference map.
+- **Measured sizes:** before/after for each frame and a final size after merging and sharing equivalent resources.
+- **Overlap review:** possible overlaps based on position, dimensions and coverage, with an action to locate each layer. It never removes layers.
+- **Vertical layout:** a 460 × 800 panel with a contained thumbnail strip.
+- **Reanalysis:** change profiles using cached originals. Refresh after changing the Figma design to capture it again.
+
+| Mode in the interface | Behavior |
 | --- | --- |
-| **Inteligente** | Optimiza imágenes compatibles dentro del PDF y comparte recursos idénticos; conserva texto y vectores. Requiere el motor local. |
-| **Original** | Une las exportaciones nativas sin recomprimir sus imágenes. |
-| **Compacto** | Convierte cada página en una imagen; pierde texto seleccionable y zoom vectorial. |
+| **Inteligente** (Smart) | Optimizes supported embedded images and shares identical resources, preserving text and vectors. Requires the local engine. |
+| **Original** | Merges native exports without recompressing their images. |
+| **Compacto** (Compact) | Rasterizes each page, sacrificing selectable text and vector zoom. |
 
-Los perfiles son **Compartir: 1920 px / calidad 68**, **Equilibrado: 2560 px / 82** y **Nítido: 3840 px / 92**. Son presupuestos de píxeles y calidad JPEG, no promesas de reducción ni certificaciones de imprenta.
+Profiles: **Compartir** (Share), 1920 px / JPEG quality 68; **Equilibrado** (Balanced), 2560 px / 82; **Nítido** (Crisp), 3840 px / 92. These are image budgets, not guaranteed file sizes or print certifications.
 
-## Calidad y privacidad
+## Quality and privacy
 
-El motor procesa los bytes exportados y no cambia capas ni imágenes del documento. Remuestrea color y alpha juntos cuando puede hacerlo de forma segura; conserva formatos, máscaras y perfiles no compatibles. La pasada final de deduplicación no vuelve a comprimir JPEG.
+The engine processes exported bytes without editing the source Figma document. It resamples color and alpha together when supported, preserves unsupported masks and profiles, and deduplicates equivalent encoded resources without another JPEG pass.
 
-JPEG tiene pérdida. El comparador muestra cambios a la resolución indicada, no garantiza identidad a cualquier zoom. Revisa fotografías, transparencias y texto antes de compartir o imprimir un PDF.
+JPEG is lossy. The comparison describes changes at the displayed resolution; review photographs, transparency and text before sharing or printing. Pluma does not provide general CMYK/P3 conversion or PDF/X certification.
 
-Los PDFs no se envían a un servicio externo. El motor escucha solo en loopback (`localhost:3847`) y procesa los datos en memoria. La instalación inicial de paquetes sí necesita internet. Este repositorio contiene fixtures sintéticos; no incluye documentos ni capturas de clientes.
+PDFs stay on your computer. The engine listens only on loopback (`localhost:3847`) and processes data in memory. The initial dependency installation requires internet access. Public tests and screenshots use synthetic content.
 
-Límites del motor: 200 frames por trabajo, 300 MiB por PDF enviado, 40 megapíxeles por imagen y dos solicitudes simultáneas. La interfaz limita su caché PDF a 450 MiB. No hay conversión general CMYK/P3 ni certificación PDF/X.
+Limits: 200 frames per job, 300 MiB per input PDF, 40 megapixels per image, two concurrent engine requests and a 450 MiB PDF cache in the interface.
 
-## Desarrollo
+## Development
 
 ```sh
 npm ci
 npm run check
-npm run engine
+npm start
 ```
 
-`npm run check` comprueba tipos, construye `dist/` y ejecuta los tests. Para generar una distribución instalable, usa `npm run package`.
+`npm run check` typechecks, builds the plugin and runs the tests locally. `npm run preview` opens the browser demo server. `npm run package` builds an installable ZIP. GitHub Actions is disabled for this repository.
 
 ```text
-src/          Controlador de Figma, interfaz y comparación visual
-engine/       Optimización, máscaras, colocación y deduplicación PDF
-scripts/      Instalación, inicio local y empaquetado
-assets/brand/ Icono, marca y portada en SVG/PNG
-docs/         Instalación, arquitectura y contribución
-tests/        Casos sintéticos y regresiones
-dist/         Bundles que importa Figma
+assets/       Brand artwork and synthetic screenshots
+src/          Figma controller, interface and PDF comparison
+engine/       Local optimization, placement, masks and deduplication
+scripts/      Build, preview, installation and packaging tools
+  macos/      macOS launchers
+  windows/    Windows launchers
+docs/         Installation, architecture, brand and contributor guides
+tests/        Synthetic fixtures and regression checks
+dist/         Generated bundles imported by Figma
+licenses/     Third-party license texts
 ```
 
-Lee [AGENTS.md](AGENTS.md) antes de modificar el proyecto. Las dependencias y sus atribuciones están en [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Read [AGENTS.md](AGENTS.md) before changing the project. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for dependencies and attribution.
 
-## Licencia
+## License
 
-[MIT](LICENSE) · Creado por [charliezstong](https://github.com/charliezstong).
+[MIT](LICENSE) · Created by [charliezstong](https://github.com/charliezstong).

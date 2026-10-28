@@ -1,30 +1,44 @@
-# Marca de Pluma PDF
+# Pluma PDF brand
 
-Una pluma blanca sobre azul: una referencia sencilla a escribir y a hacer más livianos los documentos. El corte diagonal mantiene el símbolo legible en tamaños pequeños.
+The primary icon is a sculpted white feather inside a luminous cobalt glass tile. The repository cover pairs the same icon with a dark navy background and English typography.
 
-## Archivos
+## Files
 
-- `assets/brand/icon.svg`: icono vectorial con fondo azul y esquinas redondeadas.
-- `assets/brand/icon-128.png`, `icon-256.png`, `icon-512.png`: versiones PNG del mismo SVG.
-- `assets/brand/mark.svg`: símbolo azul sin fondo.
-- `assets/brand/cover.svg` y `cover.png`: portada del repositorio.
-- `assets/brand/preview.png`: captura del plugin con el documento sintético integrado.
+- `assets/brand/icon.png`: full-resolution source icon with transparent exterior.
+- `assets/brand/icon-128.png`, `icon-256.png`, `icon-512.png`: delivery sizes exported from that source.
+- `assets/brand/mark.svg`: simplified monochrome feather for contexts that require a small vector mark. It does not reproduce the glass rendering.
+- `assets/brand/cover.png`: full-resolution repository cover.
+- `assets/brand/cover.webp`: smaller web delivery version used by the README.
+- `assets/brand/preview.png`: actual plugin screenshot using its built-in synthetic document.
 
-El icono integrado en el plugin conserva la misma geometría que el SVG. Los PNG se generan desde los vectores con Sharp; no son ampliaciones de un bitmap.
+The plugin header embeds the 128 px icon locally during the build. It does not request a remote brand image. Run `node scripts/brand.mjs` to recreate the delivery sizes after intentionally replacing the source artwork.
 
-## Dirección visual
+## Production
 
-Icono minimalista y elegante para Pluma PDF, una herramienta local de exportación. Fondo azul uniforme, una sola pluma blanca de formas limpias, sin texto dentro del símbolo, sin sombras, sin efectos tridimensionales. Legible como icono pequeño y coherente con la interfaz vertical en gris oscuro.
+The icon and cover were generated using the built-in image generation tool, guided by the user's reference for blue, depth and frosted glass. The feather is original to Pluma PDF; the reference's flower, lightning bolt and attribution are not part of the result. Delivery exports resize the generated artwork; these are raster assets, not vector reconstructions. No client design imagery is included.
 
-Se exploró el concepto mediante generación de imágenes. La versión final se construyó en SVG para controlar la forma, los bordes y la reproducción en distintos tamaños. La portada y todos los recursos de esta carpeta son material de marca del proyecto; no contienen diseños ni imágenes de clientes.
+### Final icon prompt
 
-## Colores
+```text
+Use case: stylized-concept.
+Asset type: final app icon for Pluma PDF, a local Figma PDF optimization tool.
+Input images: Image 1 is a style reference only: use its powerful cobalt blue, sculpted volume, frosted translucent material and polished light. Image 2 is the existing flat feather brand: use the feather concept, but replace the flat execution completely.
+Primary request: create one original premium macOS-style app icon: a bold white-to-icy-blue sculpted quill feather floating inside an electric cobalt blue rounded square. Make the feather the clear hero, large, diagonal lower-left to upper-right, elegant single central cut along its spine and very few broad sculptural surfaces. The icon should feel fast, light and powerful. Use smooth frosted glass with luminous edges, believable soft contact shadows and subtle layered depth, like a carefully art-directed product render. A soft blue inner halo may frame the feather, but do not add extra symbols.
+Composition: square, straight-on, centered; the blue squircle occupies about 94% of the canvas with transparent exterior margins. The feather remains very legible at small size.
+Palette: saturated cobalt and ultramarine blue, icy azure and white highlights. Avoid purple.
+Constraints: transparent background outside the app tile, no surrounding poster, no text, no letters, no watermark, no reference branding. Do not copy the flower or lightning bolt from the reference. No flat generic vector look, no noisy details, no black exterior background.
+```
 
-| Uso | Color |
-| --- | --- |
-| Azul del icono | `#0A84FF` |
-| Pluma y texto principal | `#FFFFFF` |
-| Fondo de portada | `#222225` |
-| Texto secundario | `#B7B7BE` |
+### Final cover prompt
 
-Conserva espacio libre alrededor del símbolo y su proporción cuadrada. Usa el SVG para escalar y los PNG para plataformas que requieren imágenes rasterizadas.
+```text
+Use case: ads-marketing.
+Asset type: final GitHub repository cover for Pluma PDF, wide landscape 2:1 banner.
+Input image: the final Pluma PDF app icon. Preserve the same recognizable white feather, blue glass tile, depth and materials. This icon is the brand asset to feature.
+Primary request: create a beautifully art-directed premium software cover. Near-black midnight navy background, generous negative space, the supplied luminous cobalt blue frosted-glass feather app icon on the LEFT, rendered as a dimensional product with soft restrained blue light beneath it. The icon occupies roughly the left third, never cropped. On the RIGHT, large clear white modern sans-serif typography reads exactly "Pluma PDF". Directly below in smaller muted ice-blue typography, exactly "Lighter PDFs. Native detail." At the bottom of that same text column, a very small, carefully spaced line reads exactly "LOCAL · FREE · OPEN SOURCE". The composition is confident, quiet, sophisticated, with the icon providing the saturated blue energy. Keep all text well inside the margins and sharply legible.
+Constraints: match the input icon closely; only the three specified text strings; no watermark, no reference branding, no UI mockup, no extra symbols, no badges, no buttons, no decorative charts. Wide landscape 2:1 composition.
+```
+
+## Usage
+
+Keep the icon square and preserve its alpha channel. Use a dark navy or neutral background when possible, with enough space to show its luminous edges. Keep the cover's proportions and readable margins. Use the monochrome SVG only where a simplified mark is appropriate.

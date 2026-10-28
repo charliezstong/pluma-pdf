@@ -21,13 +21,33 @@ To exercise the local PDF engine, run:
 npm run engine
 ```
 
-For the browser demo, run `npm run preview` in another terminal after building. The demo helps test controls and previews; importing `manifest.json` in Figma Desktop is still necessary to check real exports and plugin messaging.
+For the browser demo, run `npm run preview` in another terminal after building. The demo helps test controls and previews; importing the repository's `manifest.json` in Figma Desktop is still necessary to check real exports and plugin messaging. Keep the engine running when testing Intelligent mode.
+
+For a fresh local installation, use the launcher for your operating system:
+
+| Platform | Install | Start engine | Preview demo |
+| --- | --- | --- | --- |
+| macOS | `scripts/macos/install.command` | `scripts/macos/start-engine.command` | `scripts/macos/preview.command` |
+| Windows | `scripts/windows/install.cmd` | `scripts/windows/start-engine.cmd` | `scripts/windows/preview.cmd` |
+
+These launchers require Node.js 24. Figma Desktop is required for the plugin itself. See [INSTALL.md](INSTALL.md) for the installation steps.
+
+## Repository layout and language
+
+- `src/`: Figma controller, plugin interface and browser-side PDF rendering.
+- `engine/`: local image and PDF processing.
+- `scripts/`: build, packaging and local development tooling. The build entry point is `scripts/build.mjs`; the browser demo entry point is `scripts/preview.mjs`.
+- `scripts/macos/` and `scripts/windows/`: platform-specific launchers.
+- `tests/`: automated tests with generated fixtures.
+- `docs/`: public installation, architecture, branding and contribution guides.
+
+Keep public documentation, release notes and tooling messages in English. The plugin interface currently remains in Spanish. Changes to repository organization should preserve the interface and PDF optimization behavior unless the pull request explicitly changes them.
 
 ## Test data and privacy
 
 Use synthetic PDFs, images and Figma node objects for automated tests. Include a small generated reproduction when reporting an issue. Never commit private design files, exported client PDFs, screenshots, image assets, Figma file keys or node coordinates copied from a private document. Do not attach confidential files to public issues or releases.
 
-The optional `PLUMA_PDF_FIXTURE` integration check accepts a PDF path on your own machine. Leave it unset for normal development and CI; private fixtures stay outside the repository and are not needed for the public test suite. Do not publish its logs if they reveal confidential information.
+The optional `PLUMA_PDF_FIXTURE` integration check accepts a PDF path on your own machine. Leave it unset for normal development; private fixtures stay outside the repository and are not needed for the public test suite. Do not publish its logs if they reveal confidential information.
 
 Commit only content you have the right to distribute. Preserve dependency licenses and attribution when adding or redistributing code, fonts or artwork. A source code license does not grant rights to someone else's design assets.
 
@@ -45,4 +65,4 @@ Add a focused regression test when changing behavior that could lose visible con
 
 Explain the trigger, the resulting behavior and the checks you ran. For interface changes, include a screenshot made with synthetic content. For PDF changes, describe the synthetic case and verify text, vectors, image placement and transparency as appropriate.
 
-CI installs locked dependencies, typechecks, builds and runs the tests on Ubuntu, Windows and macOS with Node.js 24. These checks exercise the JavaScript and native image dependencies; they do not replace a manual run inside Figma Desktop. Mention any platform or Figma behavior you could not verify.
+Run `npm run check` locally with Node.js 24 before opening a pull request. When changing platform-specific behavior, also check it on the affected operating system. Local checks exercise the JavaScript and native image dependencies; they do not replace a manual run inside Figma Desktop. Mention any platform or Figma behavior you could not verify.

@@ -1,9 +1,9 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+cd /d "%~dp0..\.."
 where node >nul 2>&1
 if errorlevel 1 (
-  echo Instala Node.js 22.13 o posterior desde https://nodejs.org/ y vuelve a abrir este archivo.
+  echo Install Node.js 22.13 or later from https://nodejs.org/ and reopen this file.
   pause
   exit /b 1
 )

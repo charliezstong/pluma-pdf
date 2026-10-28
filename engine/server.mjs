@@ -1,9 +1,12 @@
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { ImageError, optimizeImage } from './optimize.mjs';
 import { MAX_PDF_BYTES, PDFError, optimizePDF, validatePDFOptions } from './pdf-optimize.mjs';
 import { deduplicatePDF } from './pdf-deduplicate.mjs';
+
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 export const DEFAULT_PORT = 3847;
 export const MAX_BODY_BYTES = 40 * 1024 * 1024;
@@ -156,7 +159,7 @@ export function createServer({ maxBodyBytes = MAX_BODY_BYTES, maxPdfBodyBytes = 
     }
 
     if (req.method === 'GET' && url.pathname === '/health') {
-      const body = JSON.stringify({ name: 'Pluma PDF', version: '1.0.0', engine: 'sharp' });
+      const body = JSON.stringify({ name: 'Pluma PDF', version: VERSION, engine: 'sharp' });
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body) });
       res.end(body);
       return;

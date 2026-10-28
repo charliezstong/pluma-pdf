@@ -1,4 +1,6 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+const expectedVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import sharp from 'sharp';
@@ -28,7 +30,7 @@ test('health is local, uncached and has the plugin discovery contract', async ()
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('access-control-allow-origin'), 'null');
     assert.equal(response.headers.get('cache-control'), 'no-store');
-    assert.deepEqual(await response.json(), { name: 'Pluma PDF', version: '1.0.0', engine: 'sharp' });
+    assert.deepEqual(await response.json(), { name: 'Pluma PDF', version: expectedVersion, engine: 'sharp' });
   });
 });
 
