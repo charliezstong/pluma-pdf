@@ -1,0 +1,42 @@
+{
+  "name": "pluma-pdf",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Exportador PDF local para Figma: optimiza imágenes y conserva texto y vectores.",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit",
+    "engine": "node engine/server.mjs",
+    "preview": "node preview.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm run build && npm test",
+    "start": "node scripts/local.mjs engine",
+    "install:local": "node scripts/local.mjs install",
+    "package": "npm run build && node scripts/package.mjs",
+    "doctor": "node scripts/local.mjs check"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.4.299",
+    "sharp": "^0.34.5"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.119.0",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT",
+  "author": "charliezstong",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/charliezstong/pluma-pdf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/charliezstong/pluma-pdf/issues"
+  },
+  "homepage": "https://github.com/charliezstong/pluma-pdf#readme"
+}

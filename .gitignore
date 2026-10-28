@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+work/
+coverage/
+release/
+.env
+.env.*
+!.env.example
+*.log
+*.pdf
+*.fig
+*.figjam
