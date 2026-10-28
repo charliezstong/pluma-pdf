@@ -2,6 +2,7 @@ export type Locale = 'en' | 'es' | 'pt';
 export type LanguagePreference = Locale | 'auto';
 
 const en = {
+  "Loading Pluma PDF…": "Loading Pluma PDF…",
   "Sample document": "Sample document",
   "Connect local engine": "Connect local engine",
   "File name and more options": "File name and more options",
@@ -208,6 +209,7 @@ export type TranslationKey = keyof typeof en;
 export type TranslationValues = Readonly<Record<string, string | number>>;
 
 const es = {
+  "Loading Pluma PDF…": "Cargando Pluma PDF…",
   "Sample document": "Documento de muestra",
   "Connect local engine": "Conectar motor local",
   "File name and more options": "Nombre del archivo y más opciones",
@@ -411,6 +413,7 @@ const es = {
 } satisfies Record<TranslationKey, string>;
 
 const pt = {
+  "Loading Pluma PDF…": "Carregando Pluma PDF…",
   "Sample document": "Documento de exemplo",
   "Connect local engine": "Conectar motor local",
   "File name and more options": "Nome do arquivo e mais opções",

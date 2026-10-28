@@ -55,7 +55,7 @@ let languageWrites: Promise<void> = Promise.resolve();
 const LANGUAGE_STORAGE_KEY = 'pluma-language';
 const jpegOpacityCache = new Map<string, Promise<boolean>>();
 
-figma.showUI(__html__, { width: 460, height: 800, themeColors: true });
+figma.showUI(__html__, { width: 400, height: 720, themeColors: true });
 
 function post(message: Message): void {
   figma.ui.postMessage(message);

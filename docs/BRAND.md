@@ -1,6 +1,6 @@
 # Pluma PDF brand
 
-The primary icon is a sculpted white feather inside a luminous cobalt glass tile. The artistic Community and repository cover uses a sculptural paper feather, monochrome grain and cobalt folds on a pale background. The earlier navy icon-and-type cover remains available as a legacy asset.
+The primary icon is a sculpted white feather inside a luminous cobalt glass tile. The Community and repository cover uses a calm radial halo, from deep navy through cobalt and cyan to pale ice blue, with flat white typography. The earlier navy icon-and-type cover remains available as a legacy asset.
 
 ## Files
 
@@ -13,11 +13,11 @@ The primary icon is a sculpted white feather inside a luminous cobalt glass tile
 - `assets/brand/cover.webp`: smaller web export of the earlier navy cover.
 - `assets/brand/preview.png`: actual plugin screenshot using its built-in synthetic document.
 
-The plugin header embeds the 128 px icon locally during the build. It does not request a remote brand image. Run `node scripts/brand.mjs` to recreate the delivery sizes after intentionally replacing the source artwork.
+The plugin header and settings sheet embed the 128 px icon locally during the build. The startup screen uses the 256 px asset at 96 CSS pixels for a sharp centered logo, with a small animated loading indicator. Startup waits for the initial pages and language preference, with bounded fallbacks and reduced-motion support; it does not wait for the optional engine. No remote brand images are requested. Run `node scripts/brand.mjs` to recreate the delivery sizes after intentionally replacing the source artwork.
 
 ## Production
 
-The icon and cover were generated using the built-in image generation tool, guided by the user's reference for blue, depth and frosted glass. The feather is original to Pluma PDF; the reference's flower, lightning bolt and attribution are not part of the result. Delivery exports resize the generated artwork; these are raster assets, not vector reconstructions. No client design imagery is included.
+The icon was generated using the built-in image generation tool, guided by the user's reference for blue, depth and frosted glass. The feather is original to Pluma PDF; the reference's flower, lightning bolt and attribution are not part of the result. The current cover was generated separately from a blue radial-gradient reference. Delivery exports resize the generated artwork; these are raster assets, not vector reconstructions. No client design imagery is included.
 
 ### Final icon prompt
 
@@ -43,7 +43,7 @@ Constraints: match the input icon closely; only the three specified text strings
 
 ## Plugin interface
 
-Keep the panel vertical at 460 × 800. Use a pale neutral canvas, compact controls, and deep cobalt blue, related to the icon, for the rounded primary action and active choices. The document preview canvas is `#1E1E1E`. Show measured page sizes in one quiet white strip with thin separators after reading the original PDF. Keep empty metrics hidden and let the document preview use the available space. Preserve the actual PDF colors.
+Keep the panel vertical at 400 × 720. Use a pale neutral canvas, compact controls, and deep cobalt blue, related to the icon, for the rounded primary action and active choices. The document preview canvas is `#1E1E1E`. Show measured page sizes in one quiet white strip with thin separators after reading the original PDF. Keep empty metrics hidden and let the document preview use the available space. Preserve the actual PDF colors.
 
 ## Usage
 
@@ -51,28 +51,30 @@ Keep the icon square and preserve its alpha channel. Use a dark navy or neutral 
 
 ### Interface palette
 
-Interactive accents share `--blue` (`#1742B5`), with darker pressed and lighter hover states from the same scale. The metric strip stays white with neutral separators and an accented reduction value, while the PDF canvas is exactly `#1E1E1E`. Surface, control, border and text colors use shared neutral tokens. The primary action is rounded and solid, with stronger visual emphasis than secondary selections. Selected profiles and tabs use soft fills and blue text. Settings open in a full-width bottom sheet with the Pluma icon centered above the title and a fade/translate entrance. Respect reduced-motion preferences; avoid independent blue gradients or per-widget color choices. These tokens affect interface chrome only, never the rendered PDF.
+Interactive accents share `--blue` (`#174191`), with `#2052AB` hover and `#123371` pressed states. This remains recognizably blue while feeling deeper than bright cobalt. Primary buttons are rounded and 46 px tall with 13 px vertical padding. Secondary selections use neutral gray fills (`#F1F2F4`) and quiet gray borders (`#C7C9D2`), with dark blue text; avoid bright blue selection cards. The metric strip stays white with neutral separators and an accented reduction value, while the loaded PDF canvas is exactly `#1E1E1E`. All dialogs use a full-width bottom sheet with the Pluma icon centered above the title, a fade/translate entrance and a subtle exit. Respect reduced-motion preferences. These tokens affect interface chrome only, never the rendered PDF.
 
-## Artistic Community cover
+## Community cover
 
-The new cover is original artwork inspired by the separation between expressive imagery and quiet controls in [Noise & Texture](https://rog.ie/noise-and-texture/) and [FigUI3](https://rog.ie/figui3/). It does not reproduce their artwork, layout or branding. The supplied Pluma icon informed the feather gesture and cobalt accent.
+The cover uses one blue circular gradient on a white field, with generous margins and two flat white text lines in the dark center: “Pluma PDF” and “Lighter PDFs. Native detail.” Keep it circular; do not stretch it into an ellipse or add a rendered object, embossed type, badges or performance claims.
 
-One built-in image_gen generation produced the 1672 × 941 source. A deterministic Sharp Lanczos3 resize and minimal edge crop prepared the 1920 × 1080 PNG; the original remains in the local production outputs. A WebP export is used for the README. No client design imagery is present. The PNG is prepared for upload; adding it to this repository does not publish the plugin on Figma Community.
+One built-in image_gen edit of the first blue-gradient direction produced the 1672 × 941 source. A uniform resize to 1440 × 810 followed by centered white padding prepared the 1920 × 1080 PNG, preserving the circle's proportions and creating ample white space. The original remains in the local production outputs. The WebP export is used in the README. No client content is present. These assets are prepared for upload; this repository does not publish the plugin on Figma Community.
+
+The empty document preview follows the same color direction using one local CSS radial gradient on a white base. It expands eightfold over eight seconds, then breathes gently over a 30-second cycle. The circular artwork extends beyond the preview and is clipped by its bounds. Its cyan edge fades to transparency without a white ring or a separate blue background layer. Motion starts after the startup screen, stops when hidden and is disabled for reduced-motion preferences. Loaded PDF previews retain their neutral `#1E1E1E` background. Public interface screenshots use English and synthetic content. All dialogs share the logo and animated bottom-sheet presentation.
 
 ### Cover prompt
 
 ```text
-Use case: ads-marketing.
-Asset type: a single original artistic cover for the Pluma PDF Figma Community plugin. Landscape 16:9, intended 1920 x 1080 pixels. Create one finished image, not a grid of alternatives.
-Input images: Image 1 is the actual Pluma brand icon, supplied only for the recognizable white feather silhouette and electric cobalt brand identity. Preserve that recognizable feather gesture if using it. Image 2 is a reference for tactile fine monochrome grain, decisive art direction and large legible typography ONLY. Do not copy its layout, typography arrangement, subject, texture pattern, interface, icon, logos, or branding.
-Primary request: make a beautifully art-directed graphic poster about lightness and native detail. One monumental sculptural feather made from folded sheets of paper occupies the upper and right parts of the composition, with a graceful diagonal upward motion and dramatic curled folds. The pointed feather shape and long curved quill should echo the feather in image 1. Treat it as a crafted paper sculpture, not a photoreal bird feather. Broad white/silver paper planes, deep graphite fold shadows, and a restrained but unmistakable electric cobalt blue inner fold or exposed reverse surface. Let a small part of the sculpture crop beyond the right edge for confident scale. The sculpture is the single visual focus. Do not insert a separate rounded-square app-icon tile.
-Scene/backdrop: cool white and very light neutral grey, no cream cast. Beautifully controlled monochrome photographic grain and fine ink-like stippling on the sculpted surfaces and their cast shadow, slightly softer at the outer edges. Keep the typographic area clean enough to read instantly at thumbnail size. Tactile printmaking quality, contemporary experimental editorial poster, premium independent design tool; not a corporate software hero template.
-Composition/framing: an original asymmetric 16:9 poster with ample negative space and generous margins. The dominant title sits in the lower-left or left-center, balancing the sculpture, with a refined large bold modern grotesk and exceptionally deliberate kerning. The sculpture and text share one coherent graphic composition. Clear hierarchy, readable from a small thumbnail, no busy decorations or incidental tiny copy. The visual should be striking before reading the text.
-Text (verbatim, only these two lines):
+Use case: precise-object-edit.
+Asset type: one targeted refinement of the supplied Pluma PDF blue-gradient cover into a very airy minimalist editorial cover, landscape 16:9, intended 1920 x 1080 pixels.
+Input image roles: Image 1 is the existing blue-gradient-v3 cover to edit. Image 2 is the authoritative guide for the circular radial color progression and calm centered feeling only. Do not copy its word or brackets.
+Primary correction: the old gradient is MUCH TOO LARGE and oval/full-bleed. Replace it with ONE SMALL TRUE CIRCLE in the exact center of a very wide, clean WHITE canvas. Most of the cover must be blank white. The circular gradient must be isotropic: its width and height in actual pixels are equal. Do not stretch a circle into an ellipse to fit a landscape frame.
+Geometry: on the intended 1920 x 1080 canvas, center the orb at x=960, y=540. Its entire soft halo diameter should be approximately 560–620 pixels, ideally 600 pixels, INCLUDING the pale outer fade. That is only about 31 percent of the canvas width and 56 percent of its height. Leave around 650 pixels or more of clean white margin to both left and right, and at least 200 pixels of white above and below. Keep the whole halo comfortably away from every edge. Preserve a perfectly round appearance, not a pill, horizontal oval, vertical oval, full-screen wash or cropped halo.
+Background: true clean white #FFFFFF, especially across the huge outer margins and all four corners. No pale blue wash across the full canvas. Only the small central circle contains color. Its pale outer fade dissolves invisibly into white without any hard border.
+Radial gradient palette, center outward: dark center #171839; inner navy #15275a; deep blue #144ea9; blue #1c6ccc; cobalt #3195e5; cyan #55bcf5; light cyan #88d8fc; pale blue #bbe9fd and #dcf2fe; then seamless pure white. Smooth soft transitions like the second reference, no distinct concentric outlines and no banding. The central dark navy area must be large enough to hold both text lines with excellent contrast. Very subtle fine grain is allowed only if nearly invisible; no coarse noise or simulated material.
+Text (verbatim, exactly two lines):
 "Pluma PDF"
 "Lighter PDFs. Native detail."
-Text requirements: render the exact spelling, capitalization and punctuation above. Pluma PDF must be the large principal title, almost black or very dark graphite on the pale background. The tagline is a clean, smaller regular-weight line with strong readable contrast. No other text is necessary.
-Color palette: overwhelmingly cool white, silver grey, charcoal black and fine monochrome grain; electric cobalt blue matching image 1 as the one purposeful color accent. Avoid rainbows, green, purple, neon haze and warm beige.
-Lighting/mood: raking studio light reveals exquisite paper ridges, curvature, folds and microtexture, with sculptural charcoal shadows and clean highlights. Tangible, quiet, inventive, confident.
-Constraints: new original artwork; no fake UI, no panels, no screenshots, no client designs, no photos of people, no reference branding, no prices, no compression percentages, no performance claims, no watermark, no extra labels, no badges. Keep all required text well inside safe margins. Do not simply copy the reference poster or the existing icon-plus-text corporate cover. Deliver one polished opaque 16:9 cover.
+Typography: keep both lines centered INSIDE the small orb, as a compact group around its center. Use a refined clean flat white contemporary sans serif. Main title tasteful medium weight, about 42–46 pixels tall at 1920 width, much smaller than the v3 title. Tagline plain regular weight, about 17–19 pixels, with comfortable line spacing. The full wording of both lines must fit inside the dark core, without spilling onto bright cyan or white. The tagline must not approach the edge of the circle. Exact spelling, capitalization and punctuation. Crisp white flat ink only: no extrusion, bevel, outline, chrome, gradient, emboss, glow, shadow, 3D or ornamental letterforms.
+Overall feeling: a quiet white editorial page with a small blue orb, lots and lots of whitespace, deliberate proportion, calm human typography and no extraneous artwork. The restrained scale is essential.
+Constraints: one circle, two text lines, otherwise blank white. No paper sculpture, feather, icon, tile, mockup, rendered object, diagrams, orbital lines, UI, badge, prices, metrics, extra words, watermark or reference branding. Do not enlarge the orb to fill the frame. Deliver one polished 16:9 cover.
 ```

@@ -10,5 +10,6 @@ const ui = await build({ absWorkingDir: root, entryPoints: ['src/ui.ts'], bundle
 const html = await readFile(join(root, 'src/ui.html'), 'utf8');
 const css = await readFile(join(root, 'src/ui.css'), 'utf8');
 const brandIcon = await readFile(join(root, 'assets/brand/icon-128.png'));
-await writeFile(join(root, 'dist/ui.html'), html.replaceAll('__PLUMA_BRAND_ICON__', 'data:image/png;base64,' + brandIcon.toString('base64')).replace('/* PLUMA_STYLES */', () => css).replace('/* PLUMA_SCRIPT */', () => ui.outputFiles[0].text.replaceAll('</script', '<\\/script')));
+const startupIcon = await readFile(join(root, 'assets/brand/icon-256.png'));
+await writeFile(join(root, 'dist/ui.html'), html.replaceAll('__PLUMA_BRAND_ICON__', 'data:image/png;base64,' + brandIcon.toString('base64')).replaceAll('__PLUMA_STARTUP_ICON__', 'data:image/png;base64,' + startupIcon.toString('base64')).replace('/* PLUMA_STYLES */', () => css).replace('/* PLUMA_SCRIPT */', () => ui.outputFiles[0].text.replaceAll('</script', '<\\/script')));
 console.log('Pluma PDF is ready: import manifest.json in Figma Desktop.');

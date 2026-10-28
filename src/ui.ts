@@ -10,12 +10,13 @@ type SortOrder = 'canvas' | 'name' | 'manual';
 type Settings = { mode: Mode; quality: number; maxEdge: number };
 type Variant = { bytes: Uint8Array; optimized: number; skipped: number; unchanged: boolean };
 type Frame = { id: string; name: string; width: number; height: number; selected: boolean; original?: Uint8Array; variants: Map<string, Variant>; thumb?: string };
-type Job = { id: string; ids: string[]; missingIds: string[]; settings: Settings; key: string; abort: AbortController; cancelled: boolean; controllerActive: boolean; processed: number; finalizing: boolean };
+type Job = { id: string; ids: string[]; missingIds: string[]; settings: Settings; key: string; abort: AbortController; cancelled: boolean; controllerActive: boolean; processed: number; finalizing: boolean; processingFrameId?: string };
 type Output = { bytes: Uint8Array; originalBytes: number; ids: string[]; key: string; optimized: number; skipped: number };
 type Preview = { before: string; after?: string; diff?: RenderedImageDiff };
 type LayerCandidate = { id: string; coverId: string; frameId: string; frameName: string; name: string; coverName: string; reason: string; confidence: string };
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const demo = parent === window;
+function startupSignal(state: 'frames' | 'language' | 'dismiss'): void { window.dispatchEvent(new CustomEvent('pluma-startup', { detail: state })); }
 const languageStorageKey = 'pluma-language';
 function browserLanguages(): string[] { return [...(navigator.languages ?? []), navigator.language ?? '']; }
 function demoLanguagePreference(): LanguagePreference {
@@ -77,6 +78,8 @@ let previewGeneration = 0;
 let previewKey = '';
 let previewReady = false;
 let previewHasAfter = false;
+let displayedPreviewFrameId = '';
+let previewQueue = Promise.resolve();
 let sourceGeneration = 0;
 let thumbnailQueue = Promise.resolve();
 let visibleDiff: RenderedImageDiff | undefined;
@@ -126,7 +129,7 @@ function errorText(error: unknown): string {
   const key = knownUiText.get(message);
   return key ? tr(key) : translateKnownPluginMessage(locale, message);
 }
-function showError(message: LocalizedContent): void { setLocalized('error', message); $('error').hidden = false; }
+function showError(message: LocalizedContent): void { startupSignal('dismiss'); setLocalized('error', message); $('error').hidden = false; }
 function clearError(): void { $('error').hidden = true; }
 function setStatus(label: LocalizedContent, detail: LocalizedContent = ''): void { setLocalized('status-text', label); setLocalized('status-detail', detail); }
 function send(message: Record<string, unknown>): void { if (demo) void demoMessage(message); else parent.postMessage({ pluginMessage: message }, '*'); }
@@ -222,24 +225,48 @@ function applyCompare(): void {
   $('before-tag').hidden = effective === 'after';
   $('after-tag').hidden = effective === 'before';
 }
+function syncAnalysisPreview(): void {
+  const panel = document.querySelector<HTMLElement>('.preview-panel');
+  if (!panel) return;
+  const active = job;
+  const id = busy && active && !active.cancelled && !active.finalizing ? active.processingFrameId : undefined;
+  const frame = id && active?.ids.includes(id) ? frames.find(value => value.id === id && value.selected) : undefined;
+  if (frame) panel.dataset.processingFrameId = frame.id;
+  else delete panel.dataset.processingFrameId;
+  const image = $<HTMLImageElement>('preview-before');
+  const surface = $('preview-surface');
+  const fit = image.complete && image.naturalWidth > 0 && image.naturalHeight > 0 ? Math.min(surface.clientWidth / image.naturalWidth, surface.clientHeight / image.naturalHeight) : 0;
+  const visible = previewReady && !surface.hidden && Number.isFinite(fit) && fit > 0;
+  if (visible) {
+    panel.style.setProperty('--scan-width', `${image.naturalWidth * fit}px`);
+    panel.style.setProperty('--scan-height', `${image.naturalHeight * fit}px`);
+  } else {
+    panel.style.removeProperty('--scan-width'); panel.style.removeProperty('--scan-height');
+  }
+  panel.classList.toggle('is-analyzing', Boolean(frame && frame.id === activeFrameId && frame.id === displayedPreviewFrameId && visible));
+}
 function updatePreview(frame?: Frame, variant?: Variant): void {
   const key = frame?.original ? `${sourceGeneration}:${frame.id}:${variant ? settingsKey() : 'original'}` : '';
-  if (key === previewKey) { applyCompare(); return; }
+  if (key === previewKey) { applyCompare(); syncAnalysisPreview(); return; }
   previewKey = key; const generation = ++previewGeneration;
   visibleDiff = undefined; $<HTMLButtonElement>('visual-check').disabled = true;
-  previewReady = false; previewHasAfter = false; applyCompare();
+  previewReady = false; previewHasAfter = false; displayedPreviewFrameId = ''; applyCompare();
   $('preview-surface').hidden = true;
   $('preview-empty').hidden = Boolean(frame?.original);
   $('preview-loading').hidden = !frame?.original;
   setLocalized('preview-caption', () => frame?.original ? tr("Rendering the actual PDF…") : tr("The comparison will appear after analysis."));
+  syncAnalysisPreview();
   if (!frame?.original) return;
   const original = frame.original;
-  void (async () => {
+  previewQueue = previewQueue.then(async () => {
+    if (generation !== previewGeneration) return;
     try {
       let cached = previews.get(key);
       if (!cached) {
         const before = await renderPdf(original, 1500);
+        if (generation !== previewGeneration) return;
         const after = variant ? variant.bytes === original ? before : await renderPdf(variant.bytes, 1500) : undefined;
+        if (generation !== previewGeneration) return;
         cached = { before: before.dataUrl, after: after?.dataUrl };
         previews.set(key, cached);
         while (previews.size > 5) previews.delete(previews.keys().next().value!);
@@ -247,10 +274,10 @@ function updatePreview(frame?: Frame, variant?: Variant): void {
       if (generation !== previewGeneration) return;
       $<HTMLImageElement>('preview-before').src = cached.before;
       $<HTMLImageElement>('preview-after').src = cached.after ?? cached.before;
-      previewReady = true; previewHasAfter = Boolean(cached.after);
+      previewReady = true; previewHasAfter = Boolean(cached.after); displayedPreviewFrameId = frame.id;
       $('preview-empty').hidden = true; $('preview-surface').hidden = false; $('preview-loading').hidden = true;
       setLocalized('preview-caption', () => variant ? mode === 'compact' ? tr("Actual PDF · rasterized page / non-selectable text") : variant.unchanged ? tr("Actual PDF · this page is preserved without reduction") : tr("Actual PDF · slide to check the details") : tr("Original PDF · waiting for analysis"));
-      applyCompare();
+      applyCompare(); syncAnalysisPreview();
       if (cached.after) {
         try { cached.diff ??= await compareRenderedImages(cached.before, cached.after); }
         catch { return; /* A failed diagnostic must not hide a valid preview. */ }
@@ -261,9 +288,9 @@ function updatePreview(frame?: Frame, variant?: Variant): void {
       if (generation !== previewGeneration) return;
       $('preview-loading').hidden = true; $('preview-empty').hidden = false;
       setLocalized('preview-caption', () => tr('Could not display the preview: {detail}', { detail: errorText(error) }));
-      previewReady = false; applyCompare();
+      previewReady = false; displayedPreviewFrameId = ''; applyCompare(); syncAnalysisPreview();
     }
-  })();
+  });
 }
 function queueThumbnail(frame: Frame): void {
   if (!frame.original || frame.thumb || thumbnailPending.has(frame.id)) return;
@@ -328,15 +355,22 @@ async function compactPdf(original: Uint8Array, active: Job): Promise<Variant> {
 }
 async function processFrame(frame: Frame, active: Job): Promise<void> {
   ensure(active); if (!frame.original) throw new Error(tr("An original page PDF is missing."));
+  active.processingFrameId = frame.id; activeFrameId = frame.id;
   const current = active.processed + 1;
   setStatus(() => tr(active.settings.mode === 'native' ? 'Preparing {name}' : 'Analyzing {name}', { name: frame.name }), () => tr('{current} of {total} pages · local processing', { current: numberText(current), total: numberText(active.ids.length) }));
-  if (!frame.variants.has(active.key)) {
-    const original = frame.original;
-    const variant = active.settings.mode === 'native' ? { bytes: original, optimized: 0, skipped: 0, unchanged: true } : active.settings.mode === 'compact' ? await compactPdf(original, active) : await optimizedPdf(original, active);
-    ensure(active); storeVariant(frame, active.key, variant);
+  render();
+  try {
+    if (!frame.variants.has(active.key)) {
+      const original = frame.original;
+      const variant = active.settings.mode === 'native' ? { bytes: original, optimized: 0, skipped: 0, unchanged: true } : active.settings.mode === 'compact' ? await compactPdf(original, active) : await optimizedPdf(original, active);
+      ensure(active); storeVariant(frame, active.key, variant);
+    }
+    active.processed++; $('progress').style.width = `${Math.max(3, active.processed / active.ids.length * 90)}%`;
+    queueThumbnail(frame); render();
+  } finally {
+    if (job === active && active.processingFrameId === frame.id) active.processingFrameId = undefined;
+    syncAnalysisPreview();
   }
-  active.processed++; $('progress').style.width = `${Math.max(3, active.processed / active.ids.length * 90)}%`;
-  queueThumbnail(frame); render();
 }
 async function mergePdfs(buffers: Uint8Array[], active: Job): Promise<Uint8Array> {
   const document = await PDFDocument.create(); ensure(active);
@@ -380,6 +414,7 @@ function failJob(active: Job, error: unknown): void {
 }
 async function startAnalysis(): Promise<void> {
   if (busy || !selectedFrames().length) return;
+  startupSignal('dismiss');
   clearError(); revokeOutput(); review = false;
   const active: Job = { id: `pluma-${Date.now()}-${Math.random().toString(16).slice(2)}`, ids: selectedFrames().map(frame => frame.id), missingIds: [], settings: settings(), key: settingsKey(), abort: new AbortController(), cancelled: false, controllerActive: false, processed: 0, finalizing: false };
   job = active; busy = true; $('progress').style.width = '2%'; setStatus(tr("Preparing analysis…"), tr("The Figma originals are not modified.")); render();
@@ -408,7 +443,7 @@ function renderLayerAudit(message: any): void {
 
 async function onMessage(message: any): Promise<void> {
   if (message.type === 'language-preference') {
-    if (message.requestId === languageRequestId && languageRevision === languageRequestRevision && isLanguagePreference(message.preference)) { languageRequestId = ''; applyLanguage(message.preference); }
+    if (message.requestId === languageRequestId && languageRevision === languageRequestRevision && isLanguagePreference(message.preference)) { languageRequestId = ''; applyLanguage(message.preference); startupSignal('language'); }
     return;
   }
   if (message.type === 'layer-audit' && message.requestId === layerRequestId) {
@@ -424,12 +459,12 @@ async function onMessage(message: any): Promise<void> {
     clearTimeout(layerRequestTimer); layerRequestId = ''; layerCandidates = []; lastLayerAudit = null;
     $<HTMLButtonElement>('layer-audit-refresh').disabled = false; $('layer-findings').replaceChildren();
     setLocalized('layer-audit-summary', tr('Design refreshed. Choose Review again to analyze this selection.'));
-    sourceGeneration++; previews.clear(); thumbnailPending.clear(); previewKey = ''; revokeOutput(); review = false;
+    sourceGeneration++; previews.clear(); thumbnailPending.clear(); previewKey = '\0'; revokeOutput(); review = false;
     frames = (message.frames || []).map((frame: any) => ({ id: String(frame.id), name: String(frame.name), width: Number(frame.width), height: Number(frame.height), selected: true, variants: new Map<string, Variant>() }));
     canvasIds = frames.map(frame => frame.id); manualIds = [...canvasIds]; sortOrder = 'canvas';
     activeFrameId = frames[0]?.id ?? ''; $<HTMLInputElement>('page-search').value = '';
     if (message.documentName) $<HTMLInputElement>('filename').value = String(message.documentName);
-    setStatus(frames.length ? () => tr(frames.length === 1 ? '{count} page available.' : '{count} pages available.', { count: numberText(frames.length) }) : tr("Select your frames in Figma."), tr("Analyze to see the original PDF and the actual result.")); render(); return;
+    setStatus(frames.length ? () => tr(frames.length === 1 ? '{count} page available.' : '{count} pages available.', { count: numberText(frames.length) }) : tr("Select your frames in Figma."), tr("Analyze to see the original PDF and the actual result.")); render(); startupSignal('frames'); return;
   }
   const active = job; if (!active || message.jobId !== active.id) return;
   if (message.type === 'progress') { if (!active.cancelled) setStatus(() => message.messageKey === 'exporting' ? pluginText(locale, 'exporting', { name: String(message.messageParams?.name ?? '') }) : translateKnownPluginMessage(locale, String(message.label)), tr('Reading the native Figma PDF…')); return; }
@@ -462,7 +497,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button => bu
 document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button => button.onclick = () => { const preset = presets[button.dataset.preset as keyof typeof presets]; $<HTMLSelectElement>('max-edge').value = String(preset.maxEdge); $<HTMLInputElement>('quality').value = String(preset.quality); $('quality-value').textContent = `${preset.quality}%`; updateSettings(); });
 $('quality').oninput = () => { $('quality-value').textContent = `${$<HTMLInputElement>('quality').value}%`; updateSettings(); };
 $('max-edge').onchange = updateSettings;
-$<HTMLSelectElement>('language').onchange = () => { const preference = $<HTMLSelectElement>('language').value; if (!isLanguagePreference(preference)) return; languageRevision++; applyLanguage(preference, true); };
+$<HTMLSelectElement>('language').onchange = () => { const preference = $<HTMLSelectElement>('language').value; if (!isLanguagePreference(preference)) return; languageRevision++; applyLanguage(preference, true); startupSignal('language'); };
 $('filename').onchange = () => { const current = output; if (current) setStatus(() => tr(current.ids.length === 1 ? '{count} page · {size}' : '{count} pages · {size}', { count: numberText(current.ids.length), size: bytesText(current.bytes.length) }), tr('File name updated. The PDF is ready to download.')); };
 $('engine-check').onclick = () => void checkEngine();
 $('engine-install').onclick = () => send({ type: 'open-install-guide' });
@@ -477,6 +512,8 @@ function dragCompare(event: PointerEvent): void { const bounds = $('preview-surf
 stage.onpointerdown = event => { if (!previewReady || !previewHasAfter || view !== 'compare') return; event.preventDefault(); stage.setPointerCapture(event.pointerId); dragCompare(event); };
 stage.onpointermove = event => { if (stage.hasPointerCapture(event.pointerId)) dragCompare(event); };
 stage.onpointerup = event => { if (stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId); };
+$<HTMLImageElement>('preview-before').addEventListener('load', syncAnalysisPreview);
+$<HTMLImageElement>('preview-before').addEventListener('error', syncAnalysisPreview);
 $<HTMLImageElement>('preview-before').draggable = false; $<HTMLImageElement>('preview-after').draggable = false;
 function openFine(): void { $<HTMLDialogElement>('fine-dialog').showModal(); }
 $('fine-open').onclick = openFine; $('settings-open').onclick = openFine;
@@ -508,6 +545,7 @@ $('layer-audit-refresh').onclick = auditLayers;
 $('layers-close').onclick = () => $<HTMLDialogElement>('layers-dialog').close();
 document.querySelector('.brand')?.addEventListener('click', event => event.preventDefault());
 window.addEventListener('message', event => { const message = event.data?.pluginMessage; if (message && typeof message === 'object' && typeof message.type === 'string') void onMessage(message); });
+window.addEventListener('resize', syncAnalysisPreview);
 window.addEventListener('unload', () => { job?.abort.abort(); if (outputUrl) URL.revokeObjectURL(outputUrl); });
 
 // Standalone preview only. These are actual generated PDFs, clearly labelled as demo pages.
@@ -529,6 +567,7 @@ async function demoMessage(message: Record<string, unknown>): Promise<void> {
 }
 if (demo) $('demo-note').hidden = false;
 applyLanguage(languagePreference);
+if (demo) startupSignal('language');
 if (!demo) { languageRequestId = `language-${Date.now()}-${Math.random().toString(16).slice(2)}`; languageRequestRevision = languageRevision; send({ type: 'get-language', requestId: languageRequestId }); }
 window.addEventListener('languagechange', () => { if (languagePreference === 'auto') applyLanguage('auto'); });
 refresh(); void checkEngine(true);

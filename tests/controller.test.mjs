@@ -301,8 +301,8 @@ test('native and hybrid export source PDF bytes without any Figma document write
   h.scene({ id: 'text', type: 'TEXT', name: 'Texto original', width: 100, height: 20 }, frame);
   h.figma.currentPage.selection = [frame];
   const before = h.snapshot(); h.boot();
-  assert.equal(h.showUI[0].options.width, 460);
-  assert.equal(h.showUI[0].options.height, 800);
+  assert.equal(h.showUI[0].options.width, 400);
+  assert.equal(h.showUI[0].options.height, 720);
   for (const mode of ['native', 'hybrid']) {
     h.send(request(mode, [frame.id], mode));
     const page = await h.wait('page', mode);

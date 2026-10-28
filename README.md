@@ -14,7 +14,7 @@ Free and open source, with no subscription. Pluma runs as a development plugin i
 ## Install
 
 1. Install **[Node.js 24 LTS](https://nodejs.org/)**, which includes npm.
-2. Download `PlumaPDF-1.1.0.zip` from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
+2. Download `PlumaPDF-1.2.0.zip` from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
 3. Run the installer for your operating system:
 
 | Platform | Install | Start the local engine |
@@ -43,9 +43,9 @@ To rebuild without starting the engine, run `npm run build`. If dependencies are
 
 ## Use
 
-<p align="center"><img src="assets/brand/preview.png" alt="Vertical Pluma PDF panel showing synthetic pages and an original/optimized PDF comparison" width="460"></p>
+<p align="center"><img src="assets/brand/preview.png" alt="Vertical Pluma PDF panel showing synthetic pages and an original/optimized PDF comparison" width="400"></p>
 
-This screenshot uses the built-in synthetic document. Its reduction figures do not predict savings for other files.
+This English-language screenshot uses the built-in synthetic document. Its reduction figures do not predict savings for other files.
 
 Select frames or choose **Page** to load the current page. Review thumbnails and **Canvas / Name / Manual** ordering, select a quality profile, and click **Analyze and preview**. After reviewing the result, click **Download PDF**. Labels follow the detected or selected language.
 
@@ -53,7 +53,8 @@ Select frames or choose **Page** to load the current page. Review thumbnails and
 - **Measured sizes:** before/after for each frame and a final size after merging and sharing equivalent resources.
 - **Overlap review:** possible overlaps based on position, dimensions and coverage, with an action to locate each layer. It never removes layers.
 - **Three languages:** automatic English, Spanish or Portuguese detection, with a saved override under **Settings → Language**.
-- **Vertical layout:** a 460 × 800 panel with a contained thumbnail strip.
+- **Analysis feedback:** the preview follows the page being processed, with a subtle scan over the visible PDF. Processing is never delayed for the animation.
+- **Vertical layout:** a 400 × 720 panel with a contained thumbnail strip.
 - **Reanalysis:** change profiles using cached originals. Refresh after changing the Figma design to capture it again.
 
 | Mode in the interface | Behavior |

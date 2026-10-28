@@ -2,13 +2,13 @@
 
 Pluma PDF is imported as a development plugin in **Figma Desktop**. You do not need a paid plugin, a Community publication, or a compression account. Keep the entire folder in a fixed location: Figma reads the plugin from that folder.
 
-These instructions describe release **1.1.0**. The interface automatically detects English, Spanish or Portuguese, with English as its fallback. These instructions use the English labels.
+These instructions describe release **1.2.0**. The interface automatically detects English, Spanish or Portuguese, with English as its fallback. These instructions use the English labels.
 
 ## Before you start
 
 You need Figma Desktop and **Node.js 22.13.0 or later**, with npm. You can use a compatible LTS version from the [official Node.js installer](https://nodejs.org/en/download). The first installation downloads npm dependencies and requires internet access. After that, the engine processes PDFs on your computer.
 
-For the packaged installation, download the `PlumaPDF-1.1.0.zip` release asset. It includes the prebuilt `dist/code.js` and `dist/ui.html` bundles. Extract the entire archive and keep the folder somewhere stable, such as Documents. On Windows, use **Extract all** before opening `.cmd` files. Do not run the plugin from inside the ZIP. Do not copy `node_modules` from another computer: Sharp needs the binary for your operating system and processor.
+For the packaged installation, download the `PlumaPDF-1.2.0.zip` release asset. It includes the prebuilt `dist/code.js` and `dist/ui.html` bundles. Extract the entire archive and keep the folder somewhere stable, such as Documents. On Windows, use **Extract all** before opening `.cmd` files. Do not run the plugin from inside the ZIP. Do not copy `node_modules` from another computer: Sharp needs the binary for your operating system and processor.
 
 A source checkout or GitHub's automatic **Source code** download does not include `dist/`, which is generated output ignored by Git. You can use the same installation steps: the installer downloads dependencies and builds the bundles from source. Finish installation before importing `manifest.json` into Figma.
 
@@ -40,17 +40,25 @@ Open `scripts/macos/start-engine.command` or `scripts/windows/start-engine.cmd`,
 
 The engine exposes `http://127.0.0.1:3847/health`. The plugin connects to `http://localhost:3847`. **Original** and **Compact** can export without this engine; **Smart** and local deduplication require it.
 
-`scripts/macos/preview.command` or `scripts/windows/preview.cmd` opens a browser demo with synthetic pages. To work with your own design, open the plugin inside Figma. The accepted plugin panel is **460 × 800**; a wider browser demo is not a substitute for checking the actual panel.
+`scripts/macos/preview.command` or `scripts/windows/preview.cmd` opens a browser demo with synthetic pages. To work with your own design, open the plugin inside Figma. The accepted plugin panel is **400 × 720**; a wider browser demo is not a substitute for checking the actual panel.
 
 If you move or rename the folder, reimport `manifest.json` from its new location. To update, close the engine and plugin, extract the new release, run its installer, and reimport its manifest.
 
 ## Interface language
 
-On startup, Pluma checks the preferred preferred languages for English, Spanish or Portuguese. Regional forms such as `en-US`, `es-CO`, `pt-BR` and `pt-PT` resolve to their base language. If none is supported, it uses English.
+On startup, Pluma checks the preferred languages for English, Spanish or Portuguese. Regional forms such as `en-US`, `es-CO`, `pt-BR` and `pt-PT` resolve to their base language. If none is supported, it uses English.
 
 Open the settings button in the header and choose **Language → Automatic**, **English**, **Español** or **Português**. The override is saved in Figma plugin storage on that device. Changing language does not discard selected pages or analyzed PDFs, and never changes names or content in your design.
 
 ## Troubleshooting
+
+### Generic development icon in Figma
+
+The icon inside Pluma's panel is bundled locally. The icon beside the plugin's name in Figma's Quick Actions and Recents belongs to Figma's plugin listing, which is separate from the panel.
+
+Figma's [documented manifest](https://developers.figma.com/docs/plugins/manifest/) has no `icon` field. There is no documented setting for replacing the generic `</>` icon of a plugin imported only from a local manifest. Adding an icon path to the manifest will not configure listing artwork.
+
+For a published plugin, Figma's [publishing flow](https://help.figma.com/hc/en-us/articles/360042293394-Publish-classic-plugins-to-the-Figma-Community) provides **Choose some images → Icon**, with a recommended size of **128 × 128 px**. Use `assets/brand/icon-128.png`. Figma also lets a creator link a local version to a published resource, but its documentation does not guarantee that a Development entry inherits the published icon. Do not change the manifest ID to an invented or unrelated published ID.
 
 ### Figma's plugin environment error
 
@@ -114,7 +122,7 @@ npm run check
 node scripts/package.mjs
 ```
 
-The packager does not run another build: it distributes the bundles that were already checked. For version 1.1.0, it generates `release/PlumaPDF-1.1.0.zip`, its SHA-256, and an inventory containing each file's hash. It also accepts `node scripts/package.mjs --out /path/to/another/folder`.
+The packager does not run another build: it distributes the bundles that were already checked. For version 1.2.0, it generates `release/PlumaPDF-1.2.0.zip`, its SHA-256, and an inventory containing each file's hash. It also accepts `node scripts/package.mjs --out /path/to/another/folder`.
 
 The installable release archive includes the manifest, prebuilt `dist/` bundles, engine, source, platform launchers, instructions, licenses, and locked dependency files. These bundles remain outside Git and its automatic source archives. The packager uses an explicit list of files and extensions; it excludes `node_modules`, `.git`, working directories, and PDFs. The ZIP works as a portable folder, although each computer must install Node.js and download its own dependencies.
 
