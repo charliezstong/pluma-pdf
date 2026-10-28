@@ -1,5 +1,6 @@
 import { cappedRasterSize } from './geometry';
 import { auditImageLayers, type AuditNode } from './occlusion';
+import { isLanguagePreference, isPluginLocale, pluginText, translateKnownPluginMessage, type LanguagePreference, type PluginLocale, type PluginTextKey } from './plugin-i18n';
 
 declare const __html__: string;
 
@@ -32,7 +33,7 @@ interface Job {
 
 class CancelledError extends Error {
   constructor() {
-    super('Exportación cancelada.');
+    super(text('cancelled'));
     this.name = 'CancelledError';
   }
 }
@@ -46,6 +47,12 @@ let scope: Scope = 'selection';
 let activeAuditRequest: string | null = null;
 let activeAuditGeneration = 0;
 let pendingFocusSelection: string | null = null;
+let locale: PluginLocale = 'en';
+let languagePreference: LanguagePreference = 'auto';
+let languagePreferenceLoaded = false;
+let languagePreferenceRevision = 0;
+let languageWrites: Promise<void> = Promise.resolve();
+const LANGUAGE_STORAGE_KEY = 'pluma-language';
 const jpegOpacityCache = new Map<string, Promise<boolean>>();
 
 figma.showUI(__html__, { width: 460, height: 800, themeColors: true });
@@ -58,8 +65,12 @@ function record(value: unknown): value is Message {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function text(key: PluginTextKey, values: Record<string, string | number> = {}): string {
+  return pluginText(locale, key, values);
+}
+
 function messageError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return translateKnownPluginMessage(locale, error instanceof Error ? error.message : String(error));
 }
 
 function warn(job: Job, warning: string): void {
@@ -151,7 +162,7 @@ function waitForReply(job: Job, key: string, outgoing: Message): Promise<Message
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       job.pending.delete(key);
-      reject(new Error('La interfaz tardó demasiado en responder. Vuelve a intentar la exportación.'));
+      reject(new Error(text('replyTimeout')));
     }, REPLY_TIMEOUT_MS);
     job.pending.set(key, { resolve, reject, timer });
     try {
@@ -177,9 +188,9 @@ function resolveReply(message: Message): void {
   else pending.resolve(message);
 }
 
-function progress(job: Job, label: string, current: number, total: number): void {
+function progress(job: Job, messageKey: PluginTextKey, messageParams: Record<string, string | number>, current: number, total: number): void {
   ensureActive(job);
-  post({ type: 'progress', jobId: job.id, label, current, total });
+  post({ type: 'progress', jobId: job.id, label: text(messageKey, messageParams), messageKey, messageParams, current, total });
 }
 
 function pageOf(node: BaseNode): PageNode | null {
@@ -199,16 +210,16 @@ function exportDimensions(node: ExportNode): { width: number; height: number } {
 function validatedRequest(message: Message): { ids: string[]; mode: ExportMode; scale: number; quality: number } {
   if (!Array.isArray(message.ids) || !message.ids.length || message.ids.length > MAX_PAGES
     || !message.ids.every(id => typeof id === 'string' && id.length > 0 && id.length <= 128)) {
-    throw new Error(`Elige entre 1 y ${MAX_PAGES} páginas para exportar.`);
+    throw new Error(text('pageCount', { max: MAX_PAGES }));
   }
   if (message.mode !== 'compact' && message.mode !== 'hybrid' && message.mode !== 'native') {
-    throw new Error('Selecciona un modo de exportación válido.');
+    throw new Error(text('invalidMode'));
   }
   if (typeof message.scale !== 'number' || !Number.isFinite(message.scale) || message.scale <= 0 || message.scale > 8) {
-    throw new Error('La escala debe ser mayor que 0 y menor o igual a 8.');
+    throw new Error(text('invalidScale'));
   }
   if (typeof message.quality !== 'number' || !Number.isInteger(message.quality) || message.quality < 40 || message.quality > 100) {
-    throw new Error('La calidad debe ser un porcentaje entero entre 40 y 100.');
+    throw new Error(text('invalidQuality'));
   }
   return { ids: [...new Set(message.ids as string[])], mode: message.mode, scale: message.scale, quality: message.quality };
 }
@@ -216,11 +227,11 @@ function validatedRequest(message: Message): { ids: string[]; mode: ExportMode; 
 async function exportDocument(message: Message): Promise<void> {
   const jobId = typeof message.jobId === 'string' ? message.jobId : '';
   if (!jobId || jobId.length > 128) {
-    post({ type: 'error', jobId, message: 'Identificador de exportación inválido.' });
+    post({ type: 'error', jobId, message: text('invalidJobId') });
     return;
   }
   if (activeJob) {
-    post({ type: 'error', jobId, message: 'Ya hay una exportación en curso. Espera a que termine o cancélala.' });
+    post({ type: 'error', jobId, message: text('busy') });
     return;
   }
   const job: Job = {
@@ -237,19 +248,19 @@ async function exportDocument(message: Message): Promise<void> {
       const node = await figma.getNodeByIdAsync(id);
       ensureActive(job);
       if (!node || node.removed || !isExportNode(node) || pageOf(node)?.id !== job.page.id) {
-        throw new Error('Una capa ya no existe o no pertenece a esta página. Actualiza la selección.');
+        throw new Error(text('missingLayer'));
       }
       nodes.push(node);
     }
     for (let index = 0; index < nodes.length; index++) {
       const node = nodes[index];
       ensureActive(job);
-      if (node.removed) throw new Error('Una capa fue eliminada durante la exportación.');
-      progress(job, `Exportando ${node.name}`, index + 1, nodes.length);
+      if (node.removed) throw new Error(text('removedLayer'));
+      progress(job, 'exporting', { name: node.name }, index + 1, nodes.length);
       const dimensions = exportDimensions(node);
       const size = cappedRasterSize(dimensions.width, dimensions.height, scale);
       if (mode === 'compact' && size.scale < scale - 1e-6) {
-        warn(job, 'Se ajustó la resolución de páginas grandes al límite de 8192 px por lado y 24 megapíxeles.');
+        warn(job, text('rasterLimit'));
       }
       const bytes = mode === 'compact'
         ? await node.exportAsync({ format: 'PNG', constraint: { type: 'SCALE', value: size.scale }, contentsOnly: true, useAbsoluteBounds: true, colorProfile: 'SRGB' })
@@ -262,7 +273,7 @@ async function exportDocument(message: Message): Promise<void> {
     }
     ensureActive(job);
     post({
-      type: 'done', jobId: job.id, stats: job.stats,
+      type: 'done', jobId: job.id, stats: { ...job.stats, warnings: job.stats.warnings.map(warning => translateKnownPluginMessage(locale, warning)) },
       // IDs arrive in the UI's reviewed order. Never sort them during export.
       pageOrder: nodes.map((node, index) => ({ index, id: node.id, name: node.name })),
     });
@@ -308,23 +319,26 @@ async function auditLayers(message: Message): Promise<void> {
   const pageId = figma.currentPage.id, deadline = Date.now() + 10_000;
   const checkCurrent = (): void => {
     if (activeAuditRequest !== requestId || activeAuditGeneration !== generation || figma.currentPage.id !== pageId) throw new CancelledError();
-    if (Date.now() >= deadline) throw new Error('La revisión alcanzó el límite de diez segundos. Prueba con menos páginas.');
+    if (Date.now() >= deadline) throw new Error(text('auditTimeout'));
   };
   try {
-    if (activeJob) throw new Error('Espera a que termine la exportación para revisar las capas.');
+    if (activeJob) throw new Error(text('auditBusy'));
     if (!Array.isArray(message.ids) || !message.ids.length || message.ids.length > MAX_PAGES
       || !message.ids.every(id => typeof id === 'string' && id.length > 0 && id.length <= 128)) {
-      throw new Error('Selecciona entre 1 y 200 páginas para revisar sus imágenes.');
+      throw new Error(text('auditPageCount'));
     }
     const roots: ExportNode[] = [];
     for (const id of new Set(message.ids as string[])) {
       checkCurrent(); const node = await figma.getNodeByIdAsync(id); checkCurrent();
-      if (!node || node.removed || !isExportNode(node) || pageOf(node)?.id !== pageId) throw new Error('Una página ya no está disponible. Actualiza la lista y vuelve a revisar.');
+      if (!node || node.removed || !isExportNode(node) || pageOf(node)?.id !== pageId) throw new Error(text('auditMissingPage'));
       roots.push(node);
     }
     const result = await auditImageLayers(roots as unknown as AuditNode[], { deadline, checkCurrent, isJpegOpaque: verifiedJpeg });
     checkCurrent();
-    post({ type: 'layer-audit', requestId, ...result });
+    post({ type: 'layer-audit', requestId, ...result,
+      candidates: result.candidates.map(candidate => ({ ...candidate, reason: translateKnownPluginMessage(locale, candidate.reason) })),
+      warnings: result.warnings.map(warning => translateKnownPluginMessage(locale, warning)),
+    });
   } catch (error) {
     if (activeAuditRequest === requestId && activeAuditGeneration === generation && !(error instanceof CancelledError)) {
       post({ type: 'layer-audit', requestId, candidates: [], scannedImages: 0, error: messageError(error), warnings: [] });
@@ -345,9 +359,43 @@ async function focusNode(message: Message): Promise<void> {
   figma.viewport.scrollAndZoomIntoView([node]);
 }
 
+function setLanguage(message: Message): void {
+  if (!isPluginLocale(message.locale)) return;
+  locale = message.locale;
+  if (!isLanguagePreference(message.preference)) return;
+  languagePreference = message.preference;
+  languagePreferenceLoaded = true;
+  languagePreferenceRevision++;
+  const preference = languagePreference;
+  // Serialize saves so a slower old write cannot replace the latest choice.
+  languageWrites = languageWrites.then(async () => {
+    try { await figma.clientStorage.setAsync(LANGUAGE_STORAGE_KEY, preference); }
+    catch { /* Storage failures must never block exporting or language use. */ }
+  });
+}
+
+async function getLanguagePreference(message: Message): Promise<void> {
+  if (typeof message.requestId !== 'string' || !message.requestId || message.requestId.length > 128) return;
+  const revision = languagePreferenceRevision;
+  if (!languagePreferenceLoaded) {
+    let stored: unknown;
+    try { stored = await figma.clientStorage.getAsync(LANGUAGE_STORAGE_KEY); }
+    catch { /* Use automatic detection if storage is unavailable. */ }
+    if (revision === languagePreferenceRevision) {
+      if (isLanguagePreference(stored)) languagePreference = stored;
+      languagePreferenceLoaded = true;
+    }
+  }
+  post({ type: 'language-preference', requestId: message.requestId, preference: languagePreference });
+}
+
 figma.ui.onmessage = (message: unknown): void => {
   if (!record(message)) return;
-  if (message.type === 'open-install-guide') {
+  if (message.type === 'set-language') {
+    setLanguage(message);
+  } else if (message.type === 'get-language') {
+    void getLanguagePreference(message);
+  } else if (message.type === 'open-install-guide') {
     figma.openExternal('https://github.com/charliezstong/pluma-pdf/releases/latest');
   } else if (message.type === 'refresh') {
     activeAuditRequest = null;

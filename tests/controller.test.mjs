@@ -22,7 +22,7 @@ async function eventually(check, description) {
 
 function harness() {
   let sequence = 0, started = false;
-  const messages = [], exports = [], mutations = [], showUI = [], focused = [], opened = [];
+  const messages = [], exports = [], mutations = [], showUI = [], focused = [], opened = [], storageReads = [], storageWrites = [];
   const registry = new Map(), events = new Map(), timers = new Set();
   const root = { id: 'document', type: 'DOCUMENT', name: 'Documento de prueba', parent: null };
   function mutation(api) { mutations.push(api); throw new Error(`Document write forbidden: ${api}`); }
@@ -79,6 +79,10 @@ function harness() {
     showUI: (html, options) => showUI.push({ html, options }), on: (event, callback) => events.set(event, callback),
     viewport: { scrollAndZoomIntoView: nodes => focused.push(nodes.map(node => node.id)) },
     openExternal: url => opened.push(url),
+    clientStorage: {
+      async getAsync(key) { storageReads.push(key); return undefined; },
+      async setAsync(key, value) { storageWrites.push({ key, value }); },
+    },
     getNodeByIdAsync: async id => registry.get(id) || null,
     getImageByHash() { mutation('getImageByHash: unnecessary source-asset access'); },
     createImage() { mutation('createImage'); }, createFrame() { mutation('createFrame'); },
@@ -89,8 +93,9 @@ function harness() {
     clearTimeout(timer) { clearTimeout(timer); timers.delete(timer); },
   });
   return {
-    figma, page, root, messages, exports, mutations, showUI, focused, opened, scene, container, snapshot,
-    boot() { started = true; vm.runInContext(controllerCode, context, { filename: 'dist/code.js' }); },
+    figma, page, root, messages, exports, mutations, showUI, focused, opened, storageReads, storageWrites, scene, container, snapshot,
+    // Existing export fixtures explicitly use Spanish; null tests the English default.
+    boot(locale = 'es') { started = true; vm.runInContext(controllerCode, context, { filename: 'dist/code.js' }); if (locale) figma.ui.onmessage({ type: 'set-language', locale }); },
     send(message) { figma.ui.onmessage(message); },
     emit(event) { events.get(event)?.(); },
     find(type, jobId) { return messages.find(message => message.type === type && (!jobId || message.jobId === jobId)); },
@@ -103,6 +108,143 @@ const request = (jobId, ids, mode = 'native', overrides = {}) => ({
   type: 'export', jobId, ids, mode, scale: 2, quality: 82, ...overrides,
 });
 const acknowledge = (h, jobId, index) => h.send({ type: 'page-ack', jobId, index });
+
+test('controller defaults to English and localizes errors, progress and warnings without translating names or protocol values', async t => {
+  const h = harness(); t.after(() => h.close());
+  const frame = h.scene({ id: 'localized-frame', name: 'Original {name} / Página', width: 20_000, height: 12_000 });
+  h.boot(null); const before = h.snapshot();
+  h.send(request('default-en', [frame.id], 'unknown'));
+  assert.equal((await h.wait('error', 'default-en')).message, 'Select a valid export mode.');
+  const expected = {
+    en: { error: 'Select a valid export mode.', progress: 'Exporting ', warning: /Large pages/ },
+    es: { error: 'Selecciona un modo de exportación válido.', progress: 'Exportando ', warning: /Se ajustó/ },
+    pt: { error: 'Selecione um modo de exportação válido.', progress: 'Exportando ', warning: /resolução.*limitada/ },
+  };
+  for (const locale of ['en', 'es', 'pt']) {
+    h.send({ type: 'set-language', locale });
+    h.send(request(`invalid-${locale}`, [frame.id], 'unknown'));
+    assert.equal((await h.wait('error', `invalid-${locale}`)).message, expected[locale].error);
+    h.send(request(`localized-${locale}`, [frame.id], 'compact'));
+    const page = await h.wait('page', `localized-${locale}`);
+    assert.equal(page.name, frame.name); assert.equal(page.format, 'png');
+    assert.equal(h.find('progress', `localized-${locale}`).label, expected[locale].progress + frame.name);
+    assert.equal(h.find('progress', `localized-${locale}`).messageKey, 'exporting');
+    assert.deepEqual(copy(h.find('progress', `localized-${locale}`).messageParams), { name: frame.name });
+    acknowledge(h, `localized-${locale}`, 0);
+    const done = await h.wait('done', `localized-${locale}`);
+    assert.match(done.stats.warnings[0], expected[locale].warning);
+    assert.equal(done.pageOrder[0].name, frame.name);
+  }
+  for (const locale of ['fr', 'en-US', 'EN', '__proto__', null, { language: 'es' }]) {
+    h.send({ type: 'set-language', locale });
+    const id = `invalid-locale-${h.messages.length}`;
+    h.send(request(id, [frame.id], 'unknown'));
+    assert.equal((await h.wait('error', id)).message, expected.pt.error);
+  }
+  assert.deepEqual(h.storageWrites, [], 'effective locale handshakes must not overwrite the saved preference');
+  assert.deepEqual(h.snapshot(), before); assert.deepEqual(h.mutations, []);
+});
+
+test('changing language and a failed preference save do not interrupt an export waiting for its ACK', async t => {
+  const h = harness(); t.after(() => h.close());
+  const first = h.scene({ id: 'language-first', name: 'First / Primeiro' });
+  const second = h.scene({ id: 'language-second', name: 'Second / Segundo' });
+  h.figma.clientStorage.setAsync = async () => { throw new Error('Storage unavailable'); };
+  h.page.selection = [first]; h.boot(null); const before = h.snapshot();
+  h.send(request('language-active', [first.id, second.id]));
+  await h.wait('page', 'language-active');
+  const count = h.messages.length;
+  h.send({ type: 'set-language', locale: 'pt', preference: 'pt' });
+  await nextTurn();
+  assert.equal(h.messages.length, count); assert.equal(h.exports.length, 1);
+  assert.equal(h.find('cancelled', 'language-active'), undefined);
+  acknowledge(h, 'language-active', 0);
+  await eventually(() => h.messages.find(message => message.type === 'page' && message.jobId === 'language-active' && message.index === 1), 'second localized page');
+  assert.equal(h.messages.filter(message => message.type === 'progress' && message.jobId === 'language-active').at(-1).label, `Exportando ${second.name}`);
+  acknowledge(h, 'language-active', 1); await h.wait('done', 'language-active');
+  assert.deepEqual(h.page.selection, [first]); assert.deepEqual(h.snapshot(), before); assert.deepEqual(h.mutations, []);
+});
+
+test('layer audit localizes reasons and limit warnings in all three languages while preserving diagnostic enums and names', async t => {
+  const h = harness(); t.after(() => h.close());
+  const roots = [];
+  for (const kind of ['same', 'overlap', 'covered']) {
+    const frame = h.scene({ id: `audit-${kind}`, name: `Original ${kind}` }); roots.push(frame);
+    for (const position of ['under', 'over']) {
+      const image = h.scene({ id: `${kind}-${position}`, type: 'RECTANGLE', name: `Capa ${position}`, bounds: { x: 0, y: 0, width: 100, height: 100 }, fills: [{ type: 'IMAGE', imageHash: kind === 'same' ? 'shared' : `${kind}-${position}`, scaleMode: 'FILL' }] }, frame);
+      image.cornerRadius = 0;
+      if (position === 'over' && kind !== 'covered') image.opacity = .5;
+    }
+  }
+  const many = h.scene({ id: 'audit-many' }); roots.push(many);
+  for (let index = 0; index < 22; index++) h.scene({ id: `many-${index}`, type: 'RECTANGLE', bounds: { x: 0, y: 0, width: 100, height: 100 }, fills: [{ type: 'IMAGE', imageHash: 'many', scaleMode: 'FILL' }] }, many);
+  h.figma.getImageByHash = () => ({ getBytesAsync: async () => new Uint8Array([255, 216, 255, 1]) });
+  h.boot(null); const before = h.snapshot();
+  const expected = {
+    en: [/share the same source image/, /images overlap/, /fully opaque JPEG/, /at most 200 matches/],
+    es: [/misma imagen fuente/, /imágenes se superponen/, /JPEG opaco/, /máximo 200 coincidencias/],
+    pt: [/mesma imagem de origem/, /imagens se sobrepõem/, /JPEG totalmente opaco/, /máximo 200 correspondências/],
+  };
+  for (const locale of ['en', 'es', 'pt']) {
+    h.send({ type: 'set-language', locale });
+    const requestId = `localized-audit-${locale}`;
+    h.send({ type: 'audit-layers', requestId, ids: roots.map(frame => frame.id) });
+    const result = await eventually(() => h.messages.find(message => message.type === 'layer-audit' && message.requestId === requestId), requestId);
+    for (const [index, kind] of ['same', 'overlap', 'covered'].entries()) {
+      const candidate = result.candidates.find(value => value.frameId === `audit-${kind}`);
+      assert.match(candidate.reason, expected[locale][index]);
+      assert.equal(candidate.confidence, kind === 'covered' ? 'geometry-covered' : 'possible');
+      assert.equal(candidate.frameName, `Original ${kind}`); assert.equal(candidate.name, 'Capa under');
+    }
+    assert.match(result.warnings.join(' '), expected[locale][3]);
+  }
+  assert.deepEqual(h.snapshot(), before); assert.deepEqual(h.mutations, []); assert.equal(h.exports.length, 0);
+});
+
+test('stored language preferences are validated and do not overwrite the effective startup locale', async t => {
+  const h = harness(); t.after(() => h.close());
+  h.figma.clientStorage.getAsync = async key => { h.storageReads.push(key); return 'es'; };
+  h.boot(null); h.send({ type: 'set-language', locale: 'pt' });
+  h.send({ type: 'get-language', requestId: 'startup-language' });
+  const response = await h.wait('language-preference');
+  assert.equal(response.requestId, 'startup-language'); assert.equal(response.preference, 'es');
+  assert.deepEqual(h.storageReads, ['pluma-language']); assert.deepEqual(h.storageWrites, []);
+  h.send(request('effective-stays-pt', ['unused'], 'unknown'));
+  assert.equal((await h.wait('error', 'effective-stays-pt')).message, 'Selecione um modo de exportação válido.');
+  for (const stored of ['fr', 'pt-BR', {}, null, undefined, new Error('Storage unavailable')]) {
+    const other = harness(); t.after(() => other.close());
+    other.figma.clientStorage.getAsync = async () => { if (stored instanceof Error) throw stored; return stored; };
+    other.boot(null); other.send({ type: 'get-language', requestId: 'invalid-stored' });
+    assert.equal((await other.wait('language-preference')).preference, 'auto');
+    assert.deepEqual(other.mutations, []);
+  }
+});
+
+test('a late stored preference cannot replace a newer manual choice and writes preserve choice order', async t => {
+  const h = harness(); t.after(() => h.close());
+  let finishRead, finishFirstWrite;
+  h.figma.clientStorage.getAsync = () => new Promise(resolve => { finishRead = resolve; });
+  h.figma.clientStorage.setAsync = async (key, value) => {
+    h.storageWrites.push({ key, value });
+    if (h.storageWrites.length === 1) await new Promise(resolve => { finishFirstWrite = resolve; });
+  };
+  h.boot(null); h.send({ type: 'get-language', requestId: 'old-read' });
+  h.send({ type: 'set-language', locale: 'pt', preference: 'pt', key: 'untrusted-key' });
+  await eventually(() => h.storageWrites.length === 1, 'first preference save');
+  h.send({ type: 'set-language', locale: 'es', preference: 'es' });
+  await nextTurn(); assert.equal(h.storageWrites.length, 1, 'writes must be serialized');
+  finishRead('en');
+  assert.equal((await h.wait('language-preference')).preference, 'es');
+  finishFirstWrite(); await eventually(() => h.storageWrites.length === 2, 'latest preference save');
+  assert.deepEqual(h.storageWrites, [{ key: 'pluma-language', value: 'pt' }, { key: 'pluma-language', value: 'es' }]);
+  h.send({ type: 'set-language', locale: 'auto', preference: 'en' });
+  h.send({ type: 'set-language', locale: 'es', preference: 'pt-BR' });
+  await nextTurn(); assert.equal(h.storageWrites.length, 2, 'malformed locales/preferences must not be saved');
+  h.send({ type: 'set-language', locale: 'en', preference: 'auto' });
+  await eventually(() => h.storageWrites.length === 3, 'automatic preference save');
+  assert.deepEqual(h.storageWrites[2], { key: 'pluma-language', value: 'auto' });
+  assert.deepEqual(h.mutations, []); assert.equal(h.exports.length, 0);
+});
 
 test('installation help opens only the fixed release URL without changing selection or interrupting an active export', async t => {
   const h = harness(); t.after(() => h.close());

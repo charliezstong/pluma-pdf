@@ -1,6 +1,6 @@
 # Pluma PDF architecture
 
-Pluma combines a Figma plugin with an optional Node service that processes bytes in memory. The "Inteligente" (Smart) mode starts from the native PDF and optimizes its images while preserving the original design. This document describes the layout for release **1.0.3**. The product interface remains in Spanish.
+Pluma combines a Figma plugin with an optional Node service that processes bytes in memory. The **Smart** mode starts from the native PDF and optimizes its images while preserving the original design. This document describes the layout for release **1.1.0**. The product interface supports automatic English, Spanish and Portuguese detection, with a saved user override and English fallback.
 
 ## Components
 
@@ -46,6 +46,8 @@ PlumaPDF/
 ├── src/
 │   ├── plugin.ts                 Controller in the Figma sandbox
 │   ├── ui.ts / ui.html / ui.css   Vertical panel, cache, and downloads
+│   ├── i18n.ts                   UI catalogs and locale resolution
+│   ├── plugin-i18n.ts            Controller messages and diagnostics
 │   ├── geometry.ts               Rasterization budgets
 │   ├── occlusion.ts              Conservative layer diagnostics
 │   ├── pdf-preview.ts            Rendering of actual PDF bytes
@@ -53,7 +55,7 @@ PlumaPDF/
 └── tests/                        Synthetic PDFs, pixels, and canvas fixtures
 ```
 
-The tree shows `dist/` as generated output. It is ignored by Git and absent from a source checkout or GitHub's automatic source archives. The installable `PlumaPDF-1.0.3.zip` release asset includes prebuilt `dist/code.js` and `dist/ui.html`. The installer prepares these bundles from source, including when they are missing; installation must finish before importing the manifest into Figma.
+The tree shows `dist/` as generated output. It is ignored by Git and absent from a source checkout or GitHub's automatic source archives. The installable `PlumaPDF-1.1.0.zip` release asset includes prebuilt `dist/code.js` and `dist/ui.html`. The installer prepares these bundles from source, including when they are missing; installation must finish before importing the manifest into Figma.
 
 The `.command` launchers on macOS and `.cmd` launchers on Windows use the portable startup code. The same services can be started through npm scripts. The engine has no remote backend or persistent document storage.
 
@@ -61,11 +63,11 @@ The `.command` launchers on macOS and `.cmd` launchers on Windows use the portab
 flowchart TD
     F[Figma document] -->|native export| C[Plugin controller]
     C -->|page and jobId| U[Interface and original cache]
-    U -->|Inteligente: PDF| O[Local engine]
+    U -->|Smart: PDF| O[Local engine]
     O -->|PDF with optimized images| U
     U --> V[Preview and comparison]
     U --> M[Page merge with pdf-lib]
-    M -->|Inteligente| D[Exact local deduplication]
+    M -->|Smart| D[Exact local deduplication]
     D --> B[Downloadable PDF blob]
     M -->|Original or Compacto| B
 ```
@@ -74,7 +76,7 @@ flowchart TD
 
 The controller uses the Figma API and sends bytes to the iframe through messages. The interface uses browser APIs and does not run Node processes. The engine receives binary HTTP bodies; it receives no disk paths or identifiers that would let it edit Figma.
 
-`src/plugin.ts` exports the original nodes directly. The "Original" and "Inteligente" modes request sRGB PDFs. "Compacto" (Compact) requests sRGB PNGs and builds rasterized pages in the interface. That is an explicit option with a different tradeoff for text and vectors.
+`src/plugin.ts` exports the original nodes directly. The **Original** and **Smart** modes request sRGB PDFs. **Compact** requests sRGB PNGs and builds rasterized pages in the interface. That is an explicit option with a different tradeoff for text and vectors.
 
 The only action that can change editor navigation is "Foco" (Focus): it selects the requested layer and shows it in the viewport. Exporting and running diagnostics do not change document content, visibility, or hierarchy.
 
@@ -149,8 +151,14 @@ Validation runs locally through `npm run check`: typecheck, build, and tests. Th
 
 The demo in `scripts/preview.mjs` serves the panel at `127.0.0.1:3848` with synthetic data. It helps review interaction and layout but does not prove Figma integration or the quality of a real document.
 
-`scripts/local.mjs` checks the environment, installs from the lockfile when needed, prepares the bundles, and verifies service identity before reusing an occupied port. Its `ensureBuild` helper generates missing bundles; the install command explicitly rebuilds them. The name, engine, and version returned by `/health` must match the package. For release 1.0.3, keep the package, lockfile, engine identity, and archive version synchronized.
+`scripts/local.mjs` checks the environment, installs from the lockfile when needed, prepares the bundles, and verifies service identity before reusing an occupied port. Its `ensureBuild` helper generates missing bundles; the install command explicitly rebuilds them. The name, engine, and version returned by `/health` must match the package. For release 1.1.0, keep the package, lockfile, engine identity, and archive version synchronized.
 
 `scripts/package.mjs` uses an explicit file allowlist, rejects symbolic links, and generates an installable ZIP with an inventory and SHA-256. It includes the checked, prebuilt `dist/` bundles even though Git ignores them. It does not include installed dependencies or user documents. Platform launchers share the portable implementation; that does not establish that the Windows workflow has been tested manually on a Windows computer.
 
 The public repository contains software, generic documentation, and synthetic samples. Private validation documents, screenshots, layers, coordinates, identifiers, metrics, and fingerprints remain outside its snapshot and releases. Publishing code does not change permission to publish those documents.
+
+## Interface language
+
+`src/i18n.ts` resolves the first supported language from `navigator.languages`, then `navigator.language`, with English fallback. These are user-agent language preferences, not a guarantee of the operating-system locale; see [MDN Navigator.languages](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/languages). Automatic mode responds to `languagechange`.
+
+The UI sends an effective `set-language` locale before requesting frames, then loads the saved `auto`/`en`/`es`/`pt` preference from Figma client storage. Request IDs and a manual-change revision prevent a late read from replacing a newer choice; serialized controller writes preserve the most recent preference. Language changes rerender interface text and cached diagnostics without changing export settings, selected IDs, original PDF bytes, or completed outputs.

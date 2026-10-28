@@ -16,8 +16,8 @@ Context7 is not required for mechanical refactoring, scripts written from scratc
 ## Product invariants
 
 - **The Figma design remains intact.** Exporting or analyzing must not create clones or change fills, masks, visibility, opacity, hierarchies, positions, or dimensions. Do not use temporary document changes as an export step.
-- **"Foco" is the only navigation exception.** An explicit request to focus a layer may change the selection and viewport. It must not edit the layer's content or discard the set of pages already reviewed. Do not focus during an active export.
-- **"Inteligente" starts from the native PDF.** Optimize images inside the exported PDF; preserve text, fonts, and vector instructions. Do not rasterize an entire frame by default. The "Compacto" mode explicitly allows that tradeoff.
+- **"View layer in Figma" is the only navigation exception.** An explicit request to focus a layer may change the selection and viewport. It must not edit the layer's content or discard the set of pages already reviewed. Do not focus during an active export.
+- **"Smart" starts from the native PDF.** Optimize images inside the exported PDF; preserve text, fonts, and vector instructions. Do not rasterize an entire frame by default. The "Compact" mode explicitly allows that tradeoff.
 - **"Original" preserves the exported content.** Merging pages may change PDF serialization and references; it must not re-encode images or alter drawing instructions.
 - **Before and after share the same capture.** Keep originals in memory and compare their variants. Do not present measurements from two different exports as a comparison of the same capture.
 - **JPEG is lossy.** Do not promise pixel equality, print quality, or an absolute file size. Exact RGBA equality, a difference threshold, and visual assessment are distinct results.
@@ -35,7 +35,9 @@ Context7 is not required for mechanical refactoring, scripts written from scratc
 
 ## Interface and protocol
 
-The accepted interface is vertical, **460 × 800**. Use a restrained white or very light gray canvas, subtle controls, blue primary actions, and one compact graphite summary after analysis. Avoid oversized colored cards and empty metric placeholders. Preserve the actual PDF colors in the comparison. Check the actual plugin width, scrolling, long text, and the complete list; a screenshot of the wide demo does not replace that check. Prevent the minimum content size of grids or flex items from expanding the panel horizontally.
+The accepted interface is vertical, **460 × 800**. Use a restrained white or very light gray canvas, subtle controls, blue primary actions, and one compact white summary after analysis, using thin neutral dividers and blue only for the reduction. Use the shared color tokens consistently: one `--blue` for interactive accents, and shared neutral surface/control/line colors. Do not add unrelated ad hoc shades or button gradients. Reserve a strong blue fill for the primary action; secondary choices use soft fills, borders and blue text. Settings open as a full-width bottom sheet with the centered Pluma icon, fade/translate entry, and reduced-motion support. The main action is a rounded deep blue button; the document preview canvas is exactly `#1E1E1E`. Avoid oversized colored cards and empty metric placeholders. Preserve the actual PDF colors in the comparison. Check the actual plugin width, scrolling, long text, and the complete list; a screenshot of the wide demo does not replace that check. Prevent the minimum content size of grids or flex items from expanding the panel horizontally.
+
+Support English, Spanish and Portuguese throughout the interface, controller messages and diagnostics. Detect regional language preferences, fall back to English, and retain a manual override in plugin storage. Language changes must not reset selected pages, cached PDF bytes or export jobs. Keep document and layer names unchanged, validate stored preferences, and ignore late preference reads after a newer user choice.
 
 Preserve the `jobId` protocol, sequential page delivery, and ACKs. A stale response, settings change, or cancellation must not publish an outdated result. Respect the cache limit and release blob URLs, canvases, and PDF.js tasks.
 

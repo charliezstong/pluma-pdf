@@ -41,7 +41,7 @@ These launchers require Node.js 24. Figma Desktop is required for the plugin its
 - `tests/`: automated tests with generated fixtures.
 - `docs/`: public installation, architecture, branding and contribution guides.
 
-Keep public documentation, release notes and tooling messages in English. The plugin interface currently remains in Spanish. Changes to repository organization should preserve the interface and PDF optimization behavior unless the pull request explicitly changes them.
+Keep public documentation, release notes and tooling messages in English. The plugin interface supports English, Spanish and Portuguese. Keep catalog keys and interpolation tokens aligned, provide all three translations, and preserve English fallback and regional language detection. Keep document names and diagnostic evidence unchanged when switching the interface language. Changes to repository organization should preserve the interface and PDF optimization behavior unless the pull request explicitly changes them.
 
 ## Test data and privacy
 

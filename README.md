@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/brand/cover.webp" alt="Pluma PDF — Lighter PDFs. Native detail." width="100%"></p>
+<p align="center"><img src="assets/brand/figma-cover.webp" alt="Pluma PDF — Lighter PDFs. Native detail." width="100%"></p>
 
 <p align="center">
   <a href="https://github.com/charliezstong/pluma-pdf/releases/latest">Download</a> ·
@@ -9,12 +9,12 @@
 
 **Pluma PDF** exports lighter PDFs from Figma by optimizing embedded images while preserving native text and vectors. Review each page, compare the original and optimized PDF, and download the complete document. Processing stays on your computer.
 
-Free and open source, with no subscription. Pluma runs as a development plugin in **Figma Desktop**, with an optional local Node.js engine. The repository, documentation and installation tools are in English. The plugin interface is currently in Spanish.
+Free and open source, with no subscription. Pluma runs as a development plugin in **Figma Desktop**, with an optional local Node.js engine. The repository, documentation and installation tools are in English. The plugin detects English, Spanish and Portuguese from your preferred language settings. Unsupported languages fall back to English; you can override the choice in the plugin settings.
 
 ## Install
 
 1. Install **[Node.js 24 LTS](https://nodejs.org/)**, which includes npm.
-2. Download `PlumaPDF-1.0.3.zip` from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
+2. Download `PlumaPDF-1.1.0.zip` from the [latest release](https://github.com/charliezstong/pluma-pdf/releases/latest), extract it and keep the entire folder.
 3. Run the installer for your operating system:
 
 | Platform | Install | Start the local engine |
@@ -47,21 +47,22 @@ To rebuild without starting the engine, run `npm run build`. If dependencies are
 
 This screenshot uses the built-in synthetic document. Its reduction figures do not predict savings for other files.
 
-Select frames or choose **Página** (Page) to load the current page. Review thumbnails and **Canvas / Nombre / Manual** ordering, select a quality profile, and click **Analizar y previsualizar** (Analyze and preview). After reviewing the result, click **Descargar PDF** (Download PDF).
+Select frames or choose **Page** to load the current page. Review thumbnails and **Canvas / Name / Manual** ordering, select a quality profile, and click **Analyze and preview**. After reviewing the result, click **Download PDF**. Labels follow the detected or selected language.
 
 - **Real comparison:** original and optimized PDF renders, a draggable slider, and a deterministic difference map.
 - **Measured sizes:** before/after for each frame and a final size after merging and sharing equivalent resources.
 - **Overlap review:** possible overlaps based on position, dimensions and coverage, with an action to locate each layer. It never removes layers.
+- **Three languages:** automatic English, Spanish or Portuguese detection, with a saved override under **Settings → Language**.
 - **Vertical layout:** a 460 × 800 panel with a contained thumbnail strip.
 - **Reanalysis:** change profiles using cached originals. Refresh after changing the Figma design to capture it again.
 
 | Mode in the interface | Behavior |
 | --- | --- |
-| **Inteligente** (Smart) | Optimizes supported embedded images and shares identical resources, preserving text and vectors. Requires the local engine. |
+| **Smart** | Optimizes supported embedded images and shares identical resources, preserving text and vectors. Requires the local engine. |
 | **Original** | Merges native exports without recompressing their images. |
-| **Compacto** (Compact) | Rasterizes each page, sacrificing selectable text and vector zoom. |
+| **Compact** | Rasterizes each page, sacrificing selectable text and vector zoom. |
 
-Profiles: **Compartir** (Share), 1920 px / JPEG quality 68; **Equilibrado** (Balanced), 2560 px / 82; **Nítido** (Crisp), 3840 px / 92. These are image budgets, not guaranteed file sizes or print certifications.
+Profiles: **Share**, 1920 px / JPEG quality 68; **Balanced**, 2560 px / 82; **Crisp**, 3840 px / 92. These are image budgets, not guaranteed file sizes or print certifications.
 
 ## Quality and privacy
 
